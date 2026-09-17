@@ -79,7 +79,7 @@ macOS **用户态** RNDIS 驱动：USB 侧用 libusb 与 RNDIS 设备（Android 
 | 内核分配的 MAC | `'f','e','t','h', unit>>8, unit&0xff` → feth0 = `66:65:74:68:00:00`（0x66 的 bit1=1 → 本地管理地址，合法） |
 | MAC 设置策略 | 应把**系统侧**（feth0）的 MAC 设为设备汇报的 `OID_802_3_PERMANENT_ADDRESS`（RNDIS 语义下设备就是这块网卡，对端 ARP/DHCP 都按它建）；**驱动侧必须保留内核分配的不同 MAC**，否则两侧 IPv6 链路本地地址相同会触发 DAD 冲突。改 MAC 必须在 `IFF_UP` 之前 |
 | `BIOCPROMISC` | 对 feth **不需要**：`feth_output_common` 无条件把帧投给 peer 并 tap，不做 MAC 过滤，能否读到只由方向决定 |
-| DHCP | `sudo ipconfig set feth0 DHCP`（临时服务，只活到下次网络配置变更，不出现在系统设置里）。拆除 `sudo ipconfig set feth0 NONE`。`networksetup` 用不了 —— feth 不在 `SCNetworkInterface` 列表里 |
+| DHCP | GUI 走 `SCPreferences` + `SCNetworkService` 注册**持久**服务（feth 不在 `SCNetworkInterfaceCopyAll()` 里，但可用 `_SCNetworkInterfaceCreateWithBSDName` SPI 构造接口对象）。NetworkExtension 的 VPN provider **只认这种服务**，临时服务会让它报 "No network route"。CLI 仍用 `sudo ipconfig set feth0 DHCP`（临时服务，只活到下次网络配置变更，不出现在系统设置里），拆除 `sudo ipconfig set feth0 NONE` |
 | 性能上限警示 | 社区报告 feth 路径在超过约 5–8 Gbps 后会出现内核 mbuf 溢出并 panic。对本项目风险很低：RNDIS over USB 2.0 HS 实测约 200–300 Mbps，USB 3 下也难超 1–2 Gbps |
 | 相关 ioctl（**在**公开 `sys/sockio.h` 中） | `SIOCSIFFLAGS`(i,16) `SIOCGIFFLAGS`(i,17) `SIOCSIFMTU`(i,52) `SIOCSIFLLADDR`(i,60) `SIOCIFCREATE`(i,120) `SIOCIFDESTROY`(i,121) `SIOCIFCREATE2`(i,122) `SIOCSDRVSPEC`(i,123) `SIOCGDRVSPEC`(i,123) |
 | `IFNAMSIZ` | 16 |

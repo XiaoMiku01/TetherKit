@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "capi_support.h"
+#include "managed_network_service.h"
 #include "tetherkit/capi/tetherkit_c.h"
 #include "tetherkit/common/i18n.h"
 #include "tetherkit/common/logging.h"
@@ -90,21 +91,36 @@ void WriteRegistry(const std::vector<std::string>& names) noexcept {
 /// 而换成「只追加」就得处理销毁时的行删除与文件增长，复杂度不值得。
 void OnInterfaceChanged(std::string_view name, bool created) noexcept {
   // 整个回调必须 noexcept —— 销毁路径可能在析构里。fstream 默认不抛异常
-  // （没有 exceptions() 设置），所以这里只要不自己 throw 就是安全的。
-  const std::lock_guard<std::mutex> guard(RegistryMutex());
-  std::vector<std::string> names = ReadRegistry();
+  // （没有 exceptions() 设置），SystemConfiguration 的清理则显式兜住异常。
+  {
+    const std::lock_guard<std::mutex> guard(RegistryMutex());
+    std::vector<std::string> names = ReadRegistry();
 
-  if (created) {
-    for (const std::string& existing : names) {
-      if (existing == name) {
-        return;
+    if (created) {
+      for (const std::string& existing : names) {
+        if (existing == name) {
+          return;
+        }
       }
+      names.emplace_back(name);
+    } else {
+      std::erase(names, std::string{name});
     }
-    names.emplace_back(name);
-  } else {
-    std::erase(names, std::string{name});
+    WriteRegistry(names);
   }
-  WriteRegistry(names);
+
+  if (!created) {
+    // 网卡没了，为它注册的网络服务也该跟着走，否则会在「系统设置 → 网络」里
+    // 留下一条指向不存在接口的死条目。
+    try {
+      if (const auto status = tetherkit::capi::RemoveManagedNetworkService(name); !status) {
+        TETHERKIT_WARN_TR(Msg::kCapiServiceRemoveFailed, name, status.error().ToString());
+      }
+    } catch (...) {
+      TETHERKIT_WARN_TR(Msg::kCapiServiceRemoveFailed, name,
+                        Text(Msg::kCapiCommandNoOutput));
+    }
+  }
 }
 
 }  // namespace
@@ -125,6 +141,16 @@ tk_result_t tk_cleanup_orphan_interfaces(size_t* out_removed, tk_error_t* out_er
   if (::geteuid() != 0) {
     FillGenericError(out_error, Tr(Msg::kCapiCleanupNeedsRoot));
     return TK_ERR_PERMISSION;
+  }
+
+  // Setup:/Network/Service 会跨进程乃至重启持久化。先扫掉带 TetherKit 标记的
+  // feth 服务，才能兜住上次 helper 被 SIGKILL、系统随后又重启的情况：那时
+  // /var/run 的接口登记已经没了，但网络偏好设置里的服务仍可能留着。
+  //
+  // 失败只记日志：清网卡比清服务重要得多，不能让一个服务删不掉就把整轮兜底
+  // 清理挡住（残留的 feth 会一直占着内核资源）。
+  if (const auto status = tetherkit::capi::RemoveAllManagedNetworkServices(); !status) {
+    TETHERKIT_WARN_TR(Msg::kCapiStaleServiceCleanupFailed, status.error().ToString());
   }
 
   // ⚠️ 销毁循环里**绝不能**持有 RegistryMutex：DestroyInterfaceByName 成功后会

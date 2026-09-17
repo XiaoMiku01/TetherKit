@@ -1,16 +1,15 @@
 // 虚拟网卡的上网方式配置：DHCP / 静态 IP / 撤销，以及真实生效状态的回读。
 //
-// ★ 为什么走 `ipconfig` 而不是自己 SIOCAIFADDR ★
+// ★ 为什么 DHCP 要建立真正的 macOS 网络服务 ★
 //
-//   裸 ioctl 配出来的地址内核是认的（docs/GUI-SPIKE.md 第 6.1 节实测），但
-//   **configd 完全不认** —— 不会有服务、不会有 scoped DNS、不会有默认路由。
-//   而 `ipconfig set` 走的是 IPConfiguration 的正规注册路径，由它建立的服务
-//   IPMonitor 完全采纳。同一批动态存储键，手工写不认、IPConfiguration 写就认，
-//   差别只在服务是否经正规路径注册（第 3.2 / 6.3 节）。
+//   `ipconfig set` 只建立 State:/Network/Service 下的临时服务。普通流量能用，
+//   但 NetworkExtension 接管路由时不会把这种服务当作可靠的底层路径：VPN
+//   provider 会在 feth0 明明仍有地址和 scoped 路由时得到 "No network route"。
 //
-//   代价：`ipconfig set` 建立的是**临时服务**，只活到下一次网络配置变更，且
-//   不出现在「系统设置 → 网络」里。对 GUI 反而好办 —— App 自己就是配置入口，
-//   服务掉了重新 set 即可。
+//   DHCP 模式因此经 SCPreferences / SCNetworkService 在当前网络集里注册 feth。
+//   feth 没有 IOKit 节点，公开 API 枚举不到；managed_network_service.cc 只用
+//   Apple 自己导出的 BSD-name constructor SPI 补出 SCNetworkInterface，后续服务、
+//   协议、提交与应用全部走公开 API。服务随 feth 销毁而移除。
 //
 // ★ 静态 IP 的 DNS 是「尽力而为 + 回读验证」★
 //
@@ -38,6 +37,7 @@
 
 #include "capi_support.h"
 #include "core_foundation_support.h"
+#include "managed_network_service.h"
 #include "process_runner.h"
 #include "tetherkit/capi/tetherkit_c.h"
 #include "tetherkit/common/i18n.h"
@@ -72,6 +72,12 @@ constexpr std::string_view kRoutePath = "/sbin/route";
 /// 前三次重传。再长就该告诉用户「对面大概没有 DHCP 服务器」而不是继续转圈。
 constexpr std::chrono::seconds kDhcpLeaseTimeout{10};
 constexpr std::chrono::milliseconds kDhcpPollInterval{250};
+/// 网关连续读到同一个值多少次才认为租约稳定了。
+///
+/// 8 次 x 250 ms = 2 秒。依据：Android 的 USB 网络共享先给一份 464XLAT 过渡租约
+/// （192.0.0.2 / 网关 192.0.0.1），实测在 1 秒内就换成真正的网段；2 秒的静默期
+/// 足以跨过那次切换，又不会让「一次就到位」的设备白等太久。
+constexpr int kDhcpStableSamples = 8;
 
 // ---------------------------------------------------------------------------
 // 参数校验
@@ -290,37 +296,85 @@ void TryPublishDns(SCDynamicStoreRef store, std::string_view service_id,
   }
 }
 
-/// 等 DHCP 拿到租约。超时返回 false。
-[[nodiscard]] bool WaitForLease(std::string_view interface_name) {
+/// 等**本次新建的**服务发布出一个**稳定**的租约，返回它的网关。
+///
+/// 判定用 `State:/Network/Service/<id>/IPv4` 里的 `InterfaceName` + `Addresses`
+/// + `Router`，而**不是**只看接口地址：旧服务刚被移除时接口上仍留着上一次的地址。
+///
+/// ★ 为什么还要等「稳定」★
+///   Android 的 USB 网络共享会**先**发一份 464XLAT 过渡租约
+///   （192.0.0.2 / 网关 192.0.0.1），几秒后才换成真正的 172.19.x.x 段。实测拿
+///   第一份就装 scoped 路由，会在设备换租约后留下一条指向已失效网关的路由 ——
+///   而那正是 NetworkExtension 按接口查路径时会用的那条。所以要求网关连续
+///   kDhcpStableSamples 次读到同一个值才算稳。
+///
+/// ⚠️ 不能查 `ConfigMethod` 或 DHCP 字典里的 `State` —— **持久服务的动态存储条目
+/// 里没有这两个键**（实测：注册服务只有 Addresses / Router / InterfaceName /
+/// AdditionalRoutes，DHCP 字典只有 Lease* 与 Option_*；那两个键只出现在
+/// `ipconfig set` 建立的临时服务上）。
+[[nodiscard]] std::optional<std::string> WaitForStableLease(std::string_view interface_name,
+                                                            std::string_view service_id) {
+  SCDynamicStoreRef store = SharedDynamicStore();
+  if (store == nullptr) {
+    return std::nullopt;
+  }
+
+  // 读一次「本服务当前发布的网关」；地址与接口名对不上时视为还没就绪。
+  const auto published_router = [&]() -> std::optional<std::string> {
+    const std::optional<std::string> address = QueryAddress(interface_name, SIOCGIFADDR);
+    if (!address.has_value()) {
+      return std::nullopt;
+    }
+    const ScopedCFRef<CFDictionaryRef> ipv4 = CopyServiceEntry(store, service_id, "IPv4");
+    if (StringField(ipv4.Get(), CFSTR("InterfaceName")) != interface_name) {
+      return std::nullopt;
+    }
+    const std::vector<std::string> addresses = StringArrayField(ipv4.Get(), CFSTR("Addresses"));
+    if (std::ranges::find(addresses, *address) == addresses.end()) {
+      return std::nullopt;
+    }
+    const std::string router = StringField(ipv4.Get(), CFSTR("Router"));
+    return IsValidIpv4(router) ? std::optional{router} : std::nullopt;
+  };
+
+  std::optional<std::string> candidate;
+  int stable_samples = 0;
   const auto deadline = std::chrono::steady_clock::now() + kDhcpLeaseTimeout;
   while (std::chrono::steady_clock::now() < deadline) {
-    if (QueryAddress(interface_name, SIOCGIFADDR).has_value()) {
-      return true;
+    const std::optional<std::string> router = published_router();
+    if (router.has_value() && router == candidate) {
+      if (++stable_samples >= kDhcpStableSamples) {
+        return candidate;
+      }
+    } else {
+      candidate = router;
+      stable_samples = router.has_value() ? 1 : 0;
     }
     std::this_thread::sleep_for(kDhcpPollInterval);
   }
-  return QueryAddress(interface_name, SIOCGIFADDR).has_value();
+  return std::nullopt;
 }
 
 /// 装一条**绑定到本接口**的默认路由。
 ///
 /// scoped 路由（RTF_IFSCOPE）是 macOS 支持的每接口独立默认路由：绑定到该接口的
-/// 流量走它，不影响系统主服务。DHCP 模式下 IPConfiguration 会自己装好这一条，
-/// 只有静态模式需要我们补。
+/// 流量走它，不影响系统主服务。IPConfiguration 通常会为 DHCP 服务装好这一条；
+/// 但 feth 成为主服务时，macOS 可能只保留全局默认路由。这里显式补齐，保证
+/// NetworkExtension 等按接口做路由查询的调用方仍能找到路径。
+///
+/// 先删再加，不用 `change`：接口上可能残留一条指向**旧网关**的 scoped 路由
+/// （设备换过租约），`change` 改不动 destination 相同但已失效的那条的语义歧义，
+/// 删掉重建才能保证最终只有一条、且指向当前网关。删除失败通常意味着本来就没有，
+/// 属于正常情况，故忽略其结果。
 [[nodiscard]] Status InstallScopedDefaultRoute(std::string_view interface_name,
                                                std::string_view router) {
+  const std::vector<std::string> delete_arguments{
+      "-n", "delete", "-inet", "-ifscope", std::string{interface_name}, "default"};
+  std::ignore = RunTool(kRoutePath, delete_arguments);
+
   const std::vector<std::string> add_arguments{
       "-n", "add", "-inet", "-ifscope", std::string{interface_name}, "default", std::string{router}};
-  if (const auto status =
-          RunOrFail(kRoutePath, add_arguments, Text(Msg::kCapiWhatAddScopedRoute));
-      status) {
-    return tetherkit::Ok();
-  }
-  // 已经存在同样一条时 add 会失败（EEXIST），改成 change 再试一次。
-  const std::vector<std::string> change_arguments{
-      "-n",      "change",  "-inet",   "-ifscope",
-      std::string{interface_name}, "default", std::string{router}};
-  return RunOrFail(kRoutePath, change_arguments, Text(Msg::kCapiWhatUpdateScopedRoute));
+  return RunOrFail(kRoutePath, add_arguments, Text(Msg::kCapiWhatAddScopedRoute));
 }
 
 /// 把**全局**默认路由改到指定网关。
@@ -337,36 +391,38 @@ void TryPublishDns(SCDynamicStoreRef store, std::string_view service_id,
   return RunOrFail(kRoutePath, add_arguments, Text(Msg::kCapiWhatAddGlobalRoute));
 }
 
-/// DHCP 模式下，从租约里取出网关地址。
-[[nodiscard]] std::optional<std::string> QueryDhcpRouter(std::string_view interface_name) {
-  const auto result = RunTool(kIpconfigPath, {"getoption", interface_name, "router"});
-  if (!result || !result->Succeeded()) {
-    return std::nullopt;
-  }
-  std::string router{result->output};
-  while (!router.empty() && (router.back() == '\n' || router.back() == '\r')) {
-    router.pop_back();
-  }
-  return IsValidIpv4(router) ? std::optional{router} : std::nullopt;
-}
+
 
 [[nodiscard]] Status ApplyDhcp(std::string_view interface_name, bool set_default_route) {
+  // 先清掉同接口的旧服务。`ipconfig NONE` 负责兼容升级前留下的临时服务；
+  // SCNetworkService 才是本次 DHCP 真正使用的服务。
+  TETHERKIT_RETURN_IF_ERROR(tetherkit::capi::RemoveManagedNetworkService(interface_name));
   TETHERKIT_RETURN_IF_ERROR(
-      RunOrFail(kIpconfigPath, {"set", std::string{interface_name}, "DHCP"},
-                Text(Msg::kCapiWhatStartDhcp)));
+      RunOrFail(kIpconfigPath, {"set", std::string{interface_name}, "NONE"},
+                Text(Msg::kCapiWhatClearConfig)));
+  TETHERKIT_ASSIGN_OR_RETURN(
+      const std::string service_id,
+      tetherkit::capi::ConfigureManagedDhcpService(interface_name));
 
-  // 等租约。IPConfiguration 会自动完成四件事：拿租约、配 scoped DNS、
-  // 装 scoped 默认路由、把服务发布到动态存储 —— 我们什么都不用做。
-  if (!WaitForLease(interface_name)) {
-    return std::unexpected(Error::Generic(Tr(Msg::kCapiDhcpTimeout, kDhcpLeaseTimeout.count())));
-  }
-
-  if (!set_default_route) {
+  // 等一个稳定的租约。IPConfiguration 会拿租约、配 scoped DNS，并把服务发布到
+  // 动态存储；scoped 默认路由要我们显式补齐（feth 成为主服务时 macOS 可能只留
+  // 全局路由，NetworkExtension 对 feth 的 scoped 查询就会得到「No network route」）。
+  const std::optional<std::string> router = WaitForStableLease(interface_name, service_id);
+  if (!router.has_value()) {
+    // 地址都还没有 —— 对面很可能没在做网络共享，这才是真正的超时。
+    if (!QueryAddress(interface_name, SIOCGIFADDR).has_value()) {
+      return std::unexpected(Error::Generic(Tr(Msg::kCapiDhcpTimeout, kDhcpLeaseTimeout.count())));
+    }
+    // 有地址但网关一直没稳定下来：不装任何默认路由，免得留下一条指向过期网关的。
+    if (set_default_route) {
+      return std::unexpected(Error::Generic(Tr(Msg::kCapiDhcpNoRouter)));
+    }
     return tetherkit::Ok();
   }
-  const std::optional<std::string> router = QueryDhcpRouter(interface_name);
-  if (!router.has_value()) {
-    return std::unexpected(Error::Generic(Tr(Msg::kCapiDhcpNoRouter)));
+
+  TETHERKIT_RETURN_IF_ERROR(InstallScopedDefaultRoute(interface_name, *router));
+  if (!set_default_route) {
+    return tetherkit::Ok();
   }
   return PromoteToGlobalDefaultRoute(*router);
 }
@@ -402,6 +458,7 @@ void TryPublishDns(SCDynamicStoreRef store, std::string_view service_id,
     dns_servers.emplace_back(server);
   }
 
+  TETHERKIT_RETURN_IF_ERROR(tetherkit::capi::RemoveManagedNetworkService(interface_name));
   // 地址仍然经 IPConfiguration 下发，理由见文件头。
   TETHERKIT_RETURN_IF_ERROR(RunOrFail(
       kIpconfigPath,
@@ -430,6 +487,7 @@ void TryPublishDns(SCDynamicStoreRef store, std::string_view service_id,
 }
 
 [[nodiscard]] Status ApplyNone(std::string_view interface_name) {
+  TETHERKIT_RETURN_IF_ERROR(tetherkit::capi::RemoveManagedNetworkService(interface_name));
   return RunOrFail(kIpconfigPath, {"set", std::string{interface_name}, "NONE"},
                    Text(Msg::kCapiWhatClearConfig));
 }
@@ -554,11 +612,25 @@ tk_result_t tk_net_query(const char* interface_name, tk_net_state_t* out_state,
       CopyText(out_state->router, router);
       out_state->has_default_route = true;
     }
-    CopyText(out_state->method, StringField(ipv4.Get(), CFSTR("ConfigMethod")));
-
-    // DHCP 字典只在 DHCP 模式下存在，State 是 BOUND / INIT 之类。
+    // ConfigMethod / State 只有临时服务才发布；持久服务没有这两个键，此时按
+    // 「DHCP 租约字典存不存在」回推配置方式与服务状态，免得界面显示空白。
+    //
+    // ⚠️ 判据必须是**字典本身**，不能读里面的 LeaseStartTime —— 那个值是
+    // **CFDate 而不是 CFString**，StringField 会一律返回空串，于是每个 DHCP
+    // 服务都会被误判成 MANUAL（界面上真实出现过这个错 badge）。
     const ScopedCFRef<CFDictionaryRef> dhcp = CopyServiceEntry(store, *service_id, "DHCP");
-    CopyText(out_state->service_state, StringField(dhcp.Get(), CFSTR("State")));
+
+    std::string method = StringField(ipv4.Get(), CFSTR("ConfigMethod"));
+    if (method.empty() && out_state->has_address) {
+      method = dhcp ? "DHCP" : "MANUAL";
+    }
+    CopyText(out_state->method, method);
+
+    std::string service_state = StringField(dhcp.Get(), CFSTR("State"));
+    if (service_state.empty() && dhcp && out_state->has_address) {
+      service_state = "BOUND";
+    }
+    CopyText(out_state->service_state, service_state);
 
     // DNS 一律回读**系统里真实生效的**，而不是复述我们下发的值 ——
     // 静态模式下 DNS 能不能生效取决于 IPMonitor 认不认，只有回读才准。
