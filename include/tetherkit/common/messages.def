@@ -666,6 +666,13 @@ TETHERKIT_MESSAGE(kCapiInterfaceNotOurs,
 TETHERKIT_MESSAGE(kCapiCommandFailed, "{} 失败（退出码 {}）：{}", "{} failed (exit code {}): {}")
 TETHERKIT_MESSAGE(kCapiCommandNoOutput, "命令没有输出任何原因",
                   "the command printed no explanation")
+TETHERKIT_MESSAGE(kCapiSystemConfigurationFailed,
+                  "{} 失败（SystemConfiguration 错误 {}）：{}",
+                  "{} failed (SystemConfiguration error {}): {}")
+TETHERKIT_MESSAGE(kCapiServiceRemoveFailed, "移除 {} 的网络服务失败：{}",
+                  "failed to remove the network service for {}: {}")
+TETHERKIT_MESSAGE(kCapiStaleServiceCleanupFailed, "清理残留的网络服务失败：{}",
+                  "failed to clean up leftover network services: {}")
 TETHERKIT_MESSAGE(kCapiDnsPublishFailed, "写入 DNS 键失败（服务 {}），静态模式下 DNS 可能不生效",
                   "failed to write the DNS key (service {}); DNS may not take effect in manual "
                   "mode")

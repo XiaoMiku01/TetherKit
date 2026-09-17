@@ -14,6 +14,7 @@ add_library(
   core_foundation_support.cc
   environment.cc
   log_ring.cc
+  managed_network_service.cc
   net_config.cc
   orphan_cleanup.cc
   process_runner.cc

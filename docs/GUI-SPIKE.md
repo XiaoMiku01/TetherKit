@@ -53,17 +53,44 @@ socket / KEV 事件喂养），但 **SCNetworkInterface 服务层看不见**（�
 
 ---
 
-## 3. 被排除的三条路线
+## 3. 被排除的路线（3.1 后来被推翻，见 §3.1）
 
-### 3.1 SCPreferences 建持久网络服务 ❌
+### 3.1 SCPreferences 建持久网络服务 ✅（立项时的判断是错的）
 
 想法：用 `SCPreferences` + `SCNetworkService` 建一个真正的网络服务，让 macOS 自己
 跑 DHCP、管 DNS、算路由。
 
-排除理由：`SCNetworkInterfaceCopyAll()` 枚举的是 IOKit 节点，feth 不在其中，
-无法为它创建 `SCNetworkService`。
+立项时的排除理由：`SCNetworkInterfaceCopyAll()` 枚举的是 IOKit 节点，feth 不在
+其中，以为无法为它创建 `SCNetworkService`。
 
-要让 SC 看见 feth，得写 IOKit driver —— 那正是本项目要避免的东西。
+**这条结论只对了一半，后来被实测推翻。** 被枚举不到 ≠ 建不出来：
+`SCNetworkInterfaceCopyAll()` 确实只走 IOKit，但 SystemConfiguration 另有一个
+按 BSD 名构造接口对象的 SPI，它只做 `SIOCGIFFLAGS` + 造 entity，**完全不碰
+IOKit**（见 configd 开源实现 `SCNetworkInterface.c`）：
+
+```c
+// SCNetworkConfigurationPrivate.h（Apple 开源，macOS 10.5+ 起就有）
+SCNetworkInterfaceRef
+_SCNetworkInterfaceCreateWithBSDName(CFAllocatorRef allocator,
+                                     CFStringRef    bsdName,
+                                     UInt32         flags);
+```
+
+拿到接口对象之后，`SCNetworkServiceCreate` / `SCNetworkSetAddService` /
+`SCPreferencesCommitChanges` 全是公开 API，feth 就此成为「系统设置 → 网络」里
+一条真正的服务。实测 `networksetup -listallnetworkservices` 能列出它。
+
+**为什么这件事非做不可**：`ipconfig set` 的临时服务只有 `State:` 层，没有
+`Setup:` 层。普通流量不受影响，但 **NetworkExtension 的 packet-tunnel provider
+会拒绝把这种接口当作可用的底层路径** —— FortiClient 在 feth0 明明有地址、有
+scoped 路由的情况下照样报 "No network route to host"，日志里是
+`SCNetworkReachability`/`nw_path` 找不到服务。换成注册服务后 VPN 一次就连上。
+
+代价是服务会持久化（跨进程、跨重启），所以必须自己负责回收：网卡销毁时删、
+启动兜底时按 TetherKit 标记全扫一遍（`src/capi/managed_network_service.cc`）。
+
+要让 `SCNetworkInterfaceCopyAll()` 也看见 feth 才需要写 IOKit driver ——
+而那一步并不需要。
 
 ### 3.2 SCDynamicStore 凭空注入服务 ❌
 
