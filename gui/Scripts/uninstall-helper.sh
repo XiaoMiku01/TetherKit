@@ -5,6 +5,18 @@
 #   sudo ./gui/Scripts/uninstall-helper.sh
 set -euo pipefail
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
+# 与安装器保持相同的载荷定位规则。平铺载荷里的精确文件名用于卸载，避免在
+# 共享的 PrivilegedHelperTools 目录里用 libusb-*.dylib 发现并删除别的软件文件。
+if [[ -f "${SCRIPT_DIR}/com.tetherkit.helper" ]]; then
+  SOURCE_DIR="${SCRIPT_DIR}"
+elif [[ -n "${TETHERKIT_HELPER_DIR:-}" ]]; then
+  SOURCE_DIR="${TETHERKIT_HELPER_DIR}"
+else
+  SOURCE_DIR="$(cd -- "${SCRIPT_DIR}/../.." && pwd)/dist/TetherKit.app/Contents/Library/HelperTools"
+fi
+
 LABEL="com.tetherkit.helper"
 TOOLS_DIR="/Library/PrivilegedHelperTools"
 INSTALL_PATH="${TOOLS_DIR}/${LABEL}"
@@ -26,7 +38,11 @@ fi
 
 log "删除文件"
 rm -f "${PLIST_PATH}" "${INSTALL_PATH}"
-rm -f "${TOOLS_DIR}"/libtetherkit*.dylib "${TOOLS_DIR}"/libusb-*.dylib
+for source_library in "${SOURCE_DIR}"/libtetherkit*.dylib \
+                      "${SOURCE_DIR}"/libusb-*.dylib; do
+  [[ -e "${source_library}" || -L "${source_library}" ]] || continue
+  rm -f "${TOOLS_DIR}/$(basename "${source_library}")"
+done
 
 # 兜底：helper 若曾被强杀，登记文件里可能还留着没销毁的网卡。
 if [[ -f "${STATE_FILE}" ]]; then
