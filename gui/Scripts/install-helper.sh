@@ -75,6 +75,11 @@ find "${TOOLS_DIR}" -maxdepth 1 -name '*.dylib' -type f -exec chmod 444 {} +
 
 log "安装 ${PLIST_PATH}"
 cp "${SOURCE_DIR}/${LABEL}.plist" "${PLIST_PATH}"
+
+# launchd refuses quarantined LaunchDaemon plists on macOS.
+# Remove quarantine metadata before registering the service.
+xattr -d com.apple.quarantine "${PLIST_PATH}" 2>/dev/null || true
+
 chown root:wheel "${PLIST_PATH}"
 chmod 644 "${PLIST_PATH}"
 
