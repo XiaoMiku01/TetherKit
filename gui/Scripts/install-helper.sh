@@ -17,13 +17,14 @@ set -euo pipefail
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 # 载荷目录按优先级定位：
-#   1. TETHERKIT_HELPER_DIR —— 打包 / CI 想指哪就指哪；
-#   2. 脚本自己所在目录 —— 打进 .app 载荷目录的那份拷贝走这条：载荷就在旁边；
+#   1. 脚本自己所在目录 —— 打进 .app 载荷目录的那份拷贝走这条；它优先于环境变量，
+#      防止 GUI 以 root 执行时被继承的 TETHERKIT_HELPER_DIR 把载荷重定向到别处；
+#   2. TETHERKIT_HELPER_DIR —— 直接跑仓库脚本时给构建 / CI 指定载荷；
 #   3. 仓库默认产物位置 —— 在仓库里 sudo ./gui/Scripts/install-helper.sh 走这条。
-if [[ -n "${TETHERKIT_HELPER_DIR:-}" ]]; then
-  SOURCE_DIR="${TETHERKIT_HELPER_DIR}"
-elif [[ -f "${SCRIPT_DIR}/com.tetherkit.helper" ]]; then
+if [[ -f "${SCRIPT_DIR}/com.tetherkit.helper" ]]; then
   SOURCE_DIR="${SCRIPT_DIR}"
+elif [[ -n "${TETHERKIT_HELPER_DIR:-}" ]]; then
+  SOURCE_DIR="${TETHERKIT_HELPER_DIR}"
 else
   SOURCE_DIR="$(cd -- "${SCRIPT_DIR}/../.." && pwd)/dist/TetherKit.app/Contents/Library/HelperTools"
 fi
@@ -37,8 +38,18 @@ log() { printf '\033[32m==>\033[0m %s\n' "$1"; }
 die() { printf '\033[31m错误：\033[0m%s\n' "$1" >&2; exit 1; }
 
 [[ "${EUID}" -eq 0 ]] || die "需要 root 权限，请用 sudo 运行本脚本"
-[[ -f "${SOURCE_DIR}/${LABEL}" ]] || die "找不到 ${SOURCE_DIR}/${LABEL}
+[[ -d "${SOURCE_DIR}" ]] || die "找不到载荷目录 ${SOURCE_DIR}
   请先构建：./gui/Scripts/build-gui.sh"
+[[ -x "${SOURCE_DIR}/${LABEL}" ]] || die "找不到可执行的 ${SOURCE_DIR}/${LABEL}
+  请先构建：./gui/Scripts/build-gui.sh"
+[[ -f "${SOURCE_DIR}/${LABEL}.plist" ]] || die "找不到 ${SOURCE_DIR}/${LABEL}.plist
+  请先构建：./gui/Scripts/build-gui.sh"
+if ! compgen -G "${SOURCE_DIR}/libtetherkit*.dylib" >/dev/null; then
+  die "找不到 ${SOURCE_DIR}/libtetherkit*.dylib
+  请先构建：./gui/Scripts/build-gui.sh"
+fi
+[[ ! -L "${INSTALL_PATH}" ]] || die "拒绝覆盖符号链接 ${INSTALL_PATH}"
+[[ ! -L "${PLIST_PATH}" ]] || die "拒绝覆盖符号链接 ${PLIST_PATH}"
 
 # ------------------------------------------------------------------------------
 # 先卸载旧的
@@ -55,7 +66,11 @@ fi
 # 安装文件
 # ------------------------------------------------------------------------------
 log "安装到 ${INSTALL_PATH}"
-mkdir -p "${TOOLS_DIR}"
+if [[ -L "${TOOLS_DIR}" ]]; then
+  die "拒绝使用符号链接目录 ${TOOLS_DIR}"
+elif [[ ! -d "${TOOLS_DIR}" ]]; then
+  mkdir -m 755 "${TOOLS_DIR}"
+fi
 
 # 用 cp -a 而不是 install：libtetherkit 的两个软链必须保留成软链。
 # install 会把它们各拷成独立的真实文件，之后 @rpath 加载到的是哪一份就说不准了。
@@ -67,16 +82,29 @@ fi
 
 # LaunchDaemon 对权限有硬性要求：属主必须是 root:wheel，且**不能**对组或其他
 # 用户可写。不满足时 launchd 会拒绝加载，报的是含糊的 "Service cannot load in
-# requested session"。
-chown -R root:wheel "${TOOLS_DIR}"
-chmod 755 "${TOOLS_DIR}"
+# requested session"。这里只处理 TetherKit 自己刚安装的文件；TOOLS_DIR 是多个
+# 软件共用的目录，绝不能递归修改其中的其他 helper。
+chown root:wheel "${INSTALL_PATH}"
 chmod 544 "${INSTALL_PATH}"
-find "${TOOLS_DIR}" -maxdepth 1 -name '*.dylib' -type f -exec chmod 444 {} +
+for source_library in "${SOURCE_DIR}"/libtetherkit*.dylib \
+                      "${SOURCE_DIR}"/libusb-*.dylib; do
+  [[ -e "${source_library}" || -L "${source_library}" ]] || continue
+  destination_library="${TOOLS_DIR}/$(basename "${source_library}")"
+  [[ -e "${destination_library}" || -L "${destination_library}" ]] || \
+    die "安装后找不到 ${destination_library}"
+  chown -h root:wheel "${destination_library}"
+  if [[ ! -L "${destination_library}" ]]; then
+    chmod 444 "${destination_library}"
+  fi
+done
 
 log "安装 ${PLIST_PATH}"
 cp "${SOURCE_DIR}/${LABEL}.plist" "${PLIST_PATH}"
 chown root:wheel "${PLIST_PATH}"
 chmod 644 "${PLIST_PATH}"
+# 下载或解压得到的载荷可能给 plist 带上 quarantine；只移除 TetherKit 这一个
+# 已安装 plist 的 quarantine 属性，保留其他扩展属性。
+xattr -d com.apple.quarantine "${PLIST_PATH}" 2>/dev/null || true
 
 # ------------------------------------------------------------------------------
 # 注册
