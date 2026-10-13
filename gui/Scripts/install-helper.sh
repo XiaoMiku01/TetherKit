@@ -68,10 +68,21 @@ fi
 # LaunchDaemon 对权限有硬性要求：属主必须是 root:wheel，且**不能**对组或其他
 # 用户可写。不满足时 launchd 会拒绝加载，报的是含糊的 "Service cannot load in
 # requested session"。
-chown -R root:wheel "${TOOLS_DIR}"
+#
+# ⚠ 只调整本工具自己装进来的文件，**绝不** chown -R 整个 TOOLS_DIR。
+# /Library/PrivilegedHelperTools 由所有特权 helper 共享，里面可能有别的 App 装的、
+# 受 macOS 保护（com.apple.macl）的 bundle（例如 ChromeRemoteDesktopHost.app）。
+# 对那些文件 chown 会返回 "Operation not permitted"，在 set -euo pipefail 下直接
+# 中断脚本 —— 二进制已经拷进去了，但后面的 plist 安装与 launchctl bootstrap 全都
+# 没跑，表现成「脚本跑完了，helper 却仍然不可达」。
 chmod 755 "${TOOLS_DIR}"
+chown -h root:wheel "${INSTALL_PATH}" "${TOOLS_DIR}"/libtetherkit*.dylib
+if compgen -G "${TOOLS_DIR}/libusb-*.dylib" >/dev/null; then
+  chown -h root:wheel "${TOOLS_DIR}"/libusb-*.dylib
+fi
 chmod 544 "${INSTALL_PATH}"
-find "${TOOLS_DIR}" -maxdepth 1 -name '*.dylib' -type f -exec chmod 444 {} +
+find "${TOOLS_DIR}" -maxdepth 1 -type f \
+  \( -name 'libtetherkit*.dylib' -o -name 'libusb-*.dylib' \) -exec chmod 444 {} +
 
 log "安装 ${PLIST_PATH}"
 cp "${SOURCE_DIR}/${LABEL}.plist" "${PLIST_PATH}"
