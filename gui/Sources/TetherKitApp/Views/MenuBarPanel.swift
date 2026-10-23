@@ -2,37 +2,13 @@ import AppKit
 import SwiftUI
 import TetherKitIPC
 
-/// 菜单栏里的常驻标签：状态图标 + 实时速率。
-///
-/// 只在会话运行时显示速率文本 —— 空闲时一串 "0K" 只是噪音，图标本身已经把
-/// 状态说清楚了。数字用等宽，避免速率跳动时把右边的其它菜单栏项挤来挤去。
-struct MenuBarLabel: View {
-    var model: AppModel
-
-    var body: some View {
-        HStack(spacing: 2) {
-            Image(systemName: Design.statusSymbol(for: model.status))
-            if model.status.runState == .running {
-                Text(speedText)
-                    .font(.system(size: 11, weight: .medium).monospacedDigit())
-            }
-        }
-    }
-
-    private var speedText: String {
-        "↓\(Format.compactBitrate(model.throughput.receiveBitsPerSecond))"
-            + " ↑\(Format.compactBitrate(model.throughput.transmitBitsPerSecond))"
-    }
-}
-
 /// 点开菜单栏项后的小面板。
 ///
 /// 内容按「瞟一眼要知道什么」取舍：状态、速率、网卡与地址，再加两个动作
 /// （打开主窗口、退出）。配置、图表、日志一律留在主窗口 —— 面板不是第二个界面。
 struct MenuBarPanel: View {
     var model: AppModel
-    @Environment(\.openWindow) private var openWindow
-    @Environment(\.dismiss) private var dismiss
+    var openMainWindow: () -> Void
 
     private var status: SessionStatus { model.status }
 
@@ -113,8 +89,7 @@ struct MenuBarPanel: View {
         VStack(alignment: .leading, spacing: Design.Spacing.tight) {
             HStack {
                 Button(L(.openMainWindow)) {
-                    dismiss()
-                    presentMainWindow(model, openWindow)
+                    openMainWindow()
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)

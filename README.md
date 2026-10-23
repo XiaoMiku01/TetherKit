@@ -163,6 +163,11 @@ primary service on its own.
 for a compact panel with shortcuts back to the main window. The connection
 itself lives in the privileged helper, so quitting the UI never drops it.
 
+While connected, the status item shows upload above download in two right-aligned
+lines with a fixed width, so changing values do not move neighboring icons. Rates
+use bytes per second (`B/s`, `K/s`, `M/s`; each step is 1024); the main dashboard
+continues to show bits per second. When idle, only the status icon is shown.
+
 **Update check**: "TetherKit → Check for Updates…" checks on demand; the app also
 checks once a day on its own (it only hits GitHub's public Releases API and
 reports nothing), lighting up a notice at the bottom of the dashboard when a new

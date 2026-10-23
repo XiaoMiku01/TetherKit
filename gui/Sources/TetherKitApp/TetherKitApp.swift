@@ -18,7 +18,9 @@ import TetherKitIPC
 ///   没跑」时放慢到 2 秒一次，见 AppModel.pollDelay。
 @main
 struct TetherKitApplication: App {
+    @NSApplicationDelegateAdaptor(MenuBarAppDelegate.self) private var delegate
     @State private var model = AppModel()
+    @State private var menuBarController: MenuBarController?
 
     init() {
         // CI 冒烟与手动补建用的模式：建完 Finder 别名即退，不进 GUI。
@@ -40,6 +42,7 @@ struct TetherKitApplication: App {
     var body: some Scene {
         Window("TetherKit", id: "main") {
             MainWindowRoot(model: model)
+                .background(MenuBarInstaller(model: model, controller: $menuBarController))
         }
         // 用 Window 而不是 WindowGroup：这是一个「设备连接面板」，开多个窗口
         // 没有意义，反而会让多个实例同时轮询同一个 helper。
@@ -52,17 +55,25 @@ struct TetherKitApplication: App {
             // 只查不换 —— 原因见 UpdateChecker.swift 的类型注释。
             CommandGroup(after: .appInfo) { AppMenuItems(model: model) }
         }
+    }
+}
 
-        // 菜单栏常驻项：图标 + 实时速率。
-        //
-        // 用 .window 风格给一块小面板而不是一列菜单 —— 速率、地址这些信息是要
-        // 「看」的，不是要「选」的，菜单条目装不下。
-        MenuBarExtra {
-            MenuBarPanel(model: model)
-        } label: {
-            MenuBarLabel(model: model)
-        }
-        .menuBarExtraStyle(.window)
+/// 从 Window 场景取得真正的 openWindow 动作；控制器由 App 持有，关闭窗口不销毁。
+private struct MenuBarInstaller: View {
+    var model: AppModel
+    @Binding var controller: MenuBarController?
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Color.clear.frame(width: 0, height: 0)
+            .onAppear {
+                guard controller == nil else { return }
+                let appModel = model
+                let action = openWindow
+                controller = MenuBarController(model: appModel) {
+                    presentMainWindow(appModel, action)
+                }
+            }
     }
 }
 

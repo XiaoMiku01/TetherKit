@@ -220,16 +220,24 @@ enum Format {
         return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
     }
 
-    /// 菜单栏用的紧凑速率（如 "12.3M"、"999K"）。
-    ///
-    /// 菜单栏寸土寸金：单位压成单字母，1 Kbps 以下一律显示 "0K" ——
-    /// 那点流量在「瞟一眼菜单栏」的语境里就等于没有。
-    static func compactBitrate(_ bitsPerSecond: Double) -> String {
-        let value = max(0, bitsPerSecond)
-        if value >= 1_000_000_000 { return String(format: "%.1fG", value / 1_000_000_000) }
-        if value >= 1_000_000 { return String(format: "%.1fM", value / 1_000_000) }
-        if value >= 1_000 { return String(format: "%.0fK", value / 1_000) }
-        return "0K"
+    /// 菜单栏用字节速率，与 Clash 的紧凑显示一致（如 "2.8K/s"、"38K/s"）。
+    /// 模型仍传 bit/s，先除以 8；K/M/G/T 每级为 1024。不足 10 时保留一位
+    /// 小数，较大值取整，并在四舍五入将超过三位数前提升单位。
+    static func compactByteRate(_ bitsPerSecond: Double) -> String {
+        guard bitsPerSecond.isFinite, bitsPerSecond > 0 else { return "0B/s" }
+        var value = floor(bitsPerSecond / 8)
+        if value < 1_000 { return String(format: "%.0fB/s", value) }
+
+        let units = ["B/s", "K/s", "M/s", "G/s", "T/s"]
+        var unit = 0
+        while value.rounded() >= 1_000, unit < units.count - 1 {
+            value /= 1_024
+            unit += 1
+        }
+        let number = value < 9.95
+            ? String(format: "%.1f", value)
+            : String(format: "%.0f", value.rounded())
+        return number + units[unit]
     }
 
     static func packetsPerSecond(_ value: Double) -> String {

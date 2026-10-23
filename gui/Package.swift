@@ -100,7 +100,9 @@ let package = Package(
         .executableTarget(name: "TetherKitApp",
                           dependencies: ["TetherKitCore", "TetherKitIPC"]),
 
-        // 只测 TetherKitIPC：它是唯一「纯逻辑、不碰硬件也不需要 root」的层。
-        // 会话与网卡配置的测试在 C++ 侧（tests/test_capi.cc），不在这里重复。
+        // IPC 的纯逻辑测试。会话与网卡配置的测试在 C++ 侧
+        // （tests/test_capi.cc），不在这里重复。
         .testTarget(name: "TetherKitIPCTests", dependencies: ["TetherKitIPC"]),
+        // 原生菜单栏排版与生命周期回归：不连 helper、不启动 USB 会话。
+        .testTarget(name: "TetherKitAppTests", dependencies: ["TetherKitApp"]),
     ])

@@ -233,6 +233,17 @@ helper 根本没有它 —— 那就又回到了「对不上还查不出来」�
   两个登记点，3 秒时间窗），没登记过的当场 dismiss。见 `MainWindowRoot`。
 - **轮询是自适应的**：会话在跑 / 正在启停 / 窗口开着 → 500 ms；纯后台待机 →
   2 秒。窗口重新打开时立刻补一次刷新，避免第一眼看到陈旧数据。
+- **菜单栏使用原生文字与固定宽度**：等宽数字不能固定不同位数的总宽；把文字
+  绘入模板图片又会引入缩放、字重与基线差异。`MenuBarController` 持有原生
+  `NSStatusItem`，`MenuBarAppearance` 设置按钮的 `attributedTitle`：9.5pt 常规
+  等宽字体、10pt 行高、右对齐，上行在上、下行在下。基线按实际按钮高度修正，
+  图标和系统边距预留 30pt，六字符速率栏使运行状态下的总宽固定为约 66pt。
+  文字由系统绘制与着色；只有状态图标使用模板图。菜单栏显示 B/s、K/s、M/s，
+  模型与主窗口仍用 bit/s。空闲时只显示图标，VoiceOver 仍读取方向与完整单位。
+- **原生菜单栏的生命周期由 App 持有**：控制器不随主窗口关闭而销毁；通过
+  Observation 跟踪模型更新。原有 SwiftUI 面板托管在 `NSPopover` 中，显式关闭
+  面板并使用 Window 场景提供的 `openWindow` 动作回到主窗口。避免在独立的
+  NSHostingController 中依赖没有场景上下文的默认 `openWindow` / `dismiss`。
 
 ### 4.7b 界面语言
 
@@ -350,7 +361,7 @@ helper 缺失或版本不匹配时，界面给一个「安装 / 更新特权组�
 | 检查更新（只查不换，每日自动 + 手动菜单） | `gui/Sources/TetherKitApp/UpdateChecker.swift` |
 | Finder 别名自动维护（首次启动建立，聚焦可搜可启动；brew postinstall 有沙箱建不了） | `gui/Sources/TetherKitApp/FinderAlias.swift` |
 | SwiftUI 界面（状态、设备、网络、吞吐、日志） | `gui/Sources/TetherKitApp` |
-| 菜单栏实时速率 + 后台运行（仅菜单栏模式） | `gui/Sources/TetherKitApp/Views/MenuBarPanel.swift` |
+| 菜单栏实时速率 + 后台运行（仅菜单栏模式） | `MenuBarController.swift`、`MenuBarAppearance.swift`、`Views/MenuBarPanel.swift` |
 | 中英双语（运行期可切，界面 / 库日志 / helper 提示三处同步） | `gui/Sources/TetherKitIPC/Localization.swift`、`tk_set_language` |
 
 ### 未实现 / 已知限制

@@ -246,11 +246,12 @@ Swift 的 C++ 互操作吞不下，所以 C ABI 这一层不可省。
 | 31 | `chore(release): v0.1.4 —— 中英双语` | ✅ | README 英文版转正为默认（HoRNDIS 搜索意图 SEO）；**升级后用户必须在 App 内更新一次特权组件**（协议号变了） |
 | 32 | `feat(gui): 特权组件与 App 版本不一致时给出更新入口` | ✅ | 比的是**库**版本而不是 Info.plist（`swift run` 没有 bundle）；只取版本号，构建配置不同不算不一致；协议号没变的版本以前完全没有提示 |
 | 33 | `chore(release): v0.1.5 —— 组件版本对不上时可一键更新` | ✅ | 协议号仍是 3，旧组件照常能用；升级后管理行会提示更新，不更新也不会坏 |
+| 34 | `fix(gui): stabilize menu bar speeds with a compact two-line layout` | ✅ | 原生 NSStatusItem + attributedTitle，固定宽度与双行字节速率；保留面板、窗口重开和仅菜单栏模式 |
 
 ### 当前状态
 
 - **测试**：23 个 ctest 用例全部通过（新增 common.i18n 核对两种语言的占位符）；
-  GUI 侧 `swift test` 17 个用例通过（含 LocalizationTests、HelperConstantsTests）
+  GUI 侧 `swift test` 22 个用例通过（17 个 IPC + 5 个原生菜单栏排版与生命周期用例）
 - **构建**：`-Werror` 零告警；命令行、共享库、GUI 三套产物均可构建
 - **可运行**：`--version` / `--help` / `--list` 均正常；非 root 启动给出清晰提示
   并返回退出码 1；`TetherKit.app` 与 `tetherkit-helper` 打包后均可启动；
@@ -580,6 +581,13 @@ TX 就从 4.8 回到了 87 Mbps。
    同一类问题还有一个变种：**`static let` 存的文案只求值一次**，切语言后
    永远不更新。凡是存文案的静态成员一律改成计算属性（`AppModel` 的三条授权
    提示、`NetworkCard.dnsHint` 都踩过）。
+19. **原生菜单栏要同时接管排版和常驻生命周期。** 小字号文字使用
+    `NSStatusBarButton.attributedTitle` 直接绘制，按按钮实际高度修正基线；仅图标
+    使用模板图。`NSStatusItem` 不属于 SwiftUI 场景，关闭唯一的 `Window` 后必须
+    通过 App delegate 保持进程常驻，并在窗口关闭通知里恢复 accessory 策略。
+    独立 NSHostingController 中的面板显式接收 Window 场景的打开窗口动作，不能
+    依赖没有场景上下文的默认 `openWindow` / `dismiss`。macOS 27 上已实测关闭
+    主窗口 → 后台打开面板 → 关闭面板并恢复主窗口；新增测试不连接 helper 或 USB。
 
 ---
 
