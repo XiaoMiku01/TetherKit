@@ -3,42 +3,26 @@ import TetherKitIPC
 
 /// Log panel.
 ///
-/// Two layout modes:
-///
-///   * Old dashboard era: pinned at the bottom of the right column,
-///     absorbing the columns' remaining height. (Why the flex layer
-///     pins `idealHeight`, see `logList`: the outer ScrollView measures
-///     content by ideal size, and an embedded ScrollView's ideal height
-///     equals all logs fully expanded.)
-///   * Sidebar redesign: the card owns its page (`fillsAvailableHeight`).
-///     No outer scroll, the list grows with the window, and `minHeight`
-///     is only a floor for extreme window sizes.
-///
 /// When something breaks, this is the only tool that helps, so it does
 /// three things: filter by level, auto-scroll to the newest line,
 /// copy everything in one tap (users paste it straight into an issue).
+///
+/// The card owns the Log page: no outer scroll, the list grows with
+/// the window, and `minHeight` is only a floor for extreme window
+/// sizes. (It used to sit in the two-column dashboard's right column
+/// with a pinned 90pt height; that path is gone.)
+///
+/// The card carries no title row — the page header already says
+/// "Log".
 struct LogCard: View {
     @Bindable var model: AppModel
     @State private var autoScroll = true
 
-    /// True when the card owns its page: the list fills the remaining
-    /// page height. False keeps the old bottom-of-right-column shape
-    /// (the pinned 90pt flex layer).
-    var fillsAvailableHeight: Bool = false
-
     var body: some View {
-        Card(title: L(.logSectionTitle), systemImage: "text.alignleft") {
+        Card {
             VStack(alignment: .leading, spacing: Design.Spacing.small) {
                 toolbar
-                // Two-mode fork. This layer is the flex absorber inside
-                // the card: it grows with the window in page mode; the
-                // old two-column shape pins the ideal height (see
-                // logList).
-                if fillsAvailableHeight {
-                    logList.frame(minHeight: 288, maxHeight: .infinity)
-                } else {
-                    logList.frame(minHeight: 90, idealHeight: 90, maxHeight: .infinity)
-                }
+                logList.frame(minHeight: 288, maxHeight: .infinity)
                 if model.droppedLogCount > 0 {
                     Label(L(.logDroppedNotice, Int(model.droppedLogCount)),
                           systemImage: "exclamationmark.triangle")
@@ -101,8 +85,8 @@ struct LogCard: View {
         }
     }
 
-    /// The list body itself: no height semantics of its own (the
-    /// caller's two-mode frame decides that).
+    /// The list body itself: no height semantics of its own (the page
+    /// supplies the frame).
     private var listBody: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 2) {

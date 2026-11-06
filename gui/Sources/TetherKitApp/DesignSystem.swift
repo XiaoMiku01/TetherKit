@@ -29,10 +29,9 @@ enum Design {
 
     /// Fixed window size.
     ///
-    /// Settings-style, non-resizable window at a compact footprint:
-    /// width = sidebar 204 + content cap 640 + margins. The Connection
-    /// page fits one screen and the Network page scrolls only with the
-    /// static form expanded, so user resizing buys nothing.
+    /// Settings-style, non-resizable window at a compact footprint.
+    /// User resizing buys nothing: the Connection page fits one screen,
+    /// and the Network page scrolls only with the static form expanded.
     enum Window {
         static let width: CGFloat = 800
         static let height: CGFloat = 560
