@@ -193,4 +193,11 @@ final class TetherKitAppDelegate: NSObject, NSApplicationDelegate {
         }
         return true
     }
+
+    /// Never quit just because the last window closed — the app is a
+    /// menu-bar accessory by design. Close hides the window; the
+    /// menu-bar item stays live.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        false
+    }
 }
