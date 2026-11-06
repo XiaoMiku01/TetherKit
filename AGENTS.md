@@ -580,6 +580,16 @@ TX 就从 4.8 回到了 87 Mbps。
    同一类问题还有一个变种：**`static let` 存的文案只求值一次**，切语言后
    永远不更新。凡是存文案的静态成员一律改成计算属性（`AppModel` 的三条授权
    提示、`NetworkCard.dnsHint` 都踩过）。
+19. **裸可执行的 SwiftUI App：`Window` 场景不会在启动时实例化。** macOS 26
+   实测：`swift build` 产物（无 bundle id）启动时激活策略是 **`.prohibited`**，
+   且 SwiftUI 只在收到**显式 openWindow** 时才创建 Window 场景的窗口 ——
+   提前把策略改成 `.regular`、手动补发 activate 都救不动。症状是「只有菜单栏
+   图标，要点菜单栏面板里的『打开主窗口』才有窗口」。打包 .app 走
+   LaunchServices 的首次激活路径，**不受影响**（dev 专属现象）。排查结论与
+   插桩方式留档在 `TetherKitApp.swift` 顶部注释（2026-11-06）。另：
+   `TetherKitApplication.init()` 里的 `.prohibited → .regular` 自检救不了初始
+   窗口，但让 dev 裸跑在窗口救回后有正常激活语义，保留；`MainWindowRoot` 的
+   dev 放行例外（bundle id 为 nil）同理保留。
 
 ---
 

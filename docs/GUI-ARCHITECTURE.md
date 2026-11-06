@@ -231,6 +231,13 @@ helper 根本没有它 —— 那就又回到了「对不上还查不出来」�
   SwiftUI 生命周期不转发它），没有干净的委托口子可堵。对策在结果端：窗口每次
   出现时问 AppModel「这次展示登记过吗」（App 启动与「打开主窗口」按钮是仅有的
   两个登记点，3 秒时间窗），没登记过的当场 dismiss。见 `MainWindowRoot`。
+- **裸可执行（dev）的初始窗口不会自动出现。** 打包 .app 里 `Window` 场景随
+  LaunchServices 的首次激活自动呈现；`swift build` 裸跑时（macOS 26 实测：
+  启动即 `.prohibited`）SwiftUI 把初始窗口推迟到收到**显式 openWindow** 的
+  时机 —— dev 只能菜单栏「打开主窗口」救回，根因链与插桩证据留档在
+  `TetherKitApp.swift` 顶部与 AGENTS.md 第 7 节第 19 条。随之保留的两处 dev
+  例外：`AppModel.isWindowPresentationExpected()` 的 bundle-id 放行、
+  `TetherKitApplication.init()` 的 `.prohibited → .regular` 自检。
 - **轮询是自适应的**：会话在跑 / 正在启停 / 窗口开着 → 500 ms；纯后台待机 →
   2 秒。窗口重新打开时立刻补一次刷新，避免第一眼看到陈旧数据。
 
@@ -349,8 +356,9 @@ helper 缺失或版本不匹配时，界面给一个「安装 / 更新特权组�
 | App 内一键安装 / 更新 / 卸载特权组件 | `gui/Sources/TetherKitApp/HelperInstaller.swift` |
 | 检查更新（只查不换，每日自动 + 手动菜单） | `gui/Sources/TetherKitApp/UpdateChecker.swift` |
 | Finder 别名自动维护（首次启动建立，聚焦可搜可启动；brew postinstall 有沙箱建不了） | `gui/Sources/TetherKitApp/FinderAlias.swift` |
-| SwiftUI 界面（状态、设备、网络、吞吐、日志） | `gui/Sources/TetherKitApp` |
+| SwiftUI 界面（侧边栏五页：连接 / 网络 / 吞吐 / 日志 / 管理，`SidebarShell` 分页；日志页列表随窗口长高） | `gui/Sources/TetherKitApp/Views/SidebarShell.swift` |
 | 菜单栏实时速率 + 后台运行（仅菜单栏模式） | `gui/Sources/TetherKitApp/Views/MenuBarPanel.swift` |
+| dev 自截工具（App 窗口自捕成 PNG，无屏幕权限迭代循环） | `gui/Sources/TetherKitApp/Views/UiSelfCapture.swift` |
 | 中英双语（运行期可切，界面 / 库日志 / helper 提示三处同步） | `gui/Sources/TetherKitIPC/Localization.swift`、`tk_set_language` |
 
 ### 未实现 / 已知限制
