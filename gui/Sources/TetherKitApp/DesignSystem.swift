@@ -29,9 +29,14 @@ enum Design {
 
     /// 窗口尺寸。
     ///
-    /// 侧边栏改版后「整页不滚动」的目标按页落实：连接页一张屏内放完；网络页
-    /// 静态表单展开时允许本页滚动。窗口因此可以从两栏时代的 990×780 收坐到
-    /// 参考设置窗的紧凑尺寸 —— 宽度 = 侧边栏 204 + 内容最大 640 + 左右留白。
+    /// Window sizes.
+    ///
+    /// After the sidebar redesign, the "no whole-page scrolling" goal
+    /// became a per-page property: the Connection page fits one screen,
+    /// and the Network page scrolls only with the static form expanded.
+    /// The window can therefore shrink from the two-column era's
+    /// 990x780 to the reference settings window's compact footprint:
+    /// width = sidebar 204 + content cap 640 + margins.
     enum Window {
         static let minWidth: CGFloat = 720
         static let minHeight: CGFloat = 500

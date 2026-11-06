@@ -1,21 +1,30 @@
 import SwiftUI
 import TetherKitIPC
 
-/// 主窗口根视图：按特权组件的可用性分流，可用时展示侧边栏框架。
+/// Main window root view: gates on helper availability, then shows
+/// the sidebar shell once the helper is ready.
 ///
-/// ★ 布局的演进 ★
+/// Layout evolution:
 ///
-///   旧布局是单屏两栏仪表盘，当时刻意不用侧边栏 —— 那时整个 App 只有一件事
-///   可做，「连接前配置」与「连上后观测」都塞在同一屏。改版后按页面分区：
-///   连接（操作重心）、网络、吞吐、日志、管理，每页有自己的滚动 —— 页面越
-///   分越细，侧边栏才从「多出的空层级」变成「必要的话题目录」。
+///   The old layout was a single-screen, two-column dashboard that
+///   deliberately skipped a sidebar: the whole app did one thing, and
+///   "configure before connecting" and "observe after connecting"
+///   shared one screen. The redesign splits it into pages:
+///   Connection (the action center), Network, Throughput, Log,
+///   Manage, each with its own scrolling. The finer the pages, the
+///   more the sidebar stops being a pointless extra level and becomes
+///   a necessary table of contents.
 ///
-///   `SidebarShell` 是分组后的骨架；本文件只剩两件事：
+///   `SidebarShell` is the skeleton after the split; this file keeps
+///   two jobs:
 ///
-///   1. **按 helper 可用性分流**：探测中 / 未安装 / 版本不齐 / 可用，四选一。
-///      前三种是新手最先撞上的画面，必须整页接管而不是出现在侧边栏某页里
-///      （页面上什么都点不动，侧边栏反而成了噪音）。
-///   2. **全局弹窗**：操作失败、检查更新结果。属窗口级而无论在哪一页。
+///   1. Gate on helper availability: probing / missing / outdated /
+///      ready. The first three are the screens new users hit first,
+///      so they must take over the entire window instead of appearing
+///      inside one sidebar page (nothing is tappable there anyway,
+///      and the sidebar would just be noise).
+///   2. Window-level alerts: operation failures and update-check
+///      results. They belong to the window, whatever page is showing.
 struct ContentView: View {
     @Bindable var model: AppModel
 
@@ -62,11 +71,14 @@ struct ContentView: View {
         }
     }
 
-    /// helper 在探测 / 未安装 / 版本不齐时的整页容器。
+    /// Full-page container for the probing / missing / outdated
+    /// helper states.
     ///
-    /// 三种状态都只有一张卡，居中偏上放在窗口背景上；`minHeight` 让卡片
-    /// 区域撑满可视区（与整个窗口共用背景渐变），`basedOnSize` 保证
-    /// 内容放得下时完全不滚动、不回弹。
+    /// All three states show a single card, centered a bit above
+    /// middle, on the window background. `minHeight` makes the card
+    /// area fill the visible area (sharing the window's background
+    /// gradient) and `basedOnSize` guarantees no scrolling or bounce
+    /// while the content fits.
     private func gatingPage(_ card: some View, _ proxy: GeometryProxy) -> some View {
         ScrollView {
             card
@@ -95,11 +107,14 @@ struct ContentView: View {
         }
     }
 
-    /// 背景用一层随状态变化的极淡渐变。
+    /// A very faint gradient behind everything, tinted by session
+    /// state.
     ///
-    /// 强度刻意压得很低（0.10 / 0.04）：它的作用是让「连上了」这件事在余光里
-    /// 也能被感知，而不是抢内容的注意力。侧边栏页自带底色，渐变只在
-    /// helper 未就绪的整页与侧边栏背后的兜底可见。
+    /// Kept deliberately faint (0.10 / 0.04): its job is to make
+    /// "connected" perceptible in peripheral vision, not to compete
+    /// with content. Sidebar pages carry their own background
+    /// material; the gradient remains visible only on the
+    /// helper-not-ready full pages and as fallback behind the sidebar.
     private var backgroundGradient: some View {
         let accent = Design.accent(for: model.status.runState)
         return LinearGradient(

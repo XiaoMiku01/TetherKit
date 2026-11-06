@@ -9,10 +9,12 @@ import TetherKitIPC
 struct ThroughputCard: View {
     @Bindable var model: AppModel
 
-    /// 页面化开关。吞吐卡现在是「吞吐」页的主体 —— 页头本身写着「吞吐」，
-    /// 卡片自我介绍的标题行要能关掉，避免同一层级出现两次。
-    /// 「实时」徽标随标题行一起走：页面化时由页面头负责渲染它
-    /// （见 ThroughputPage）。
+    /// Page-mode switch. The throughput card is now the body of the
+    /// "Throughput" page; the page header already reads "Throughput",
+    /// so the card's self-introducing title row must be able to turn
+    /// off instead of saying it twice at the same level.
+    /// The LIVE badge moves with the title row: in page mode the page
+    /// header renders it (see ThroughputPage).
     var showsTitleRow: Bool = true
 
     private var hasData: Bool { !model.throughputHistory.isEmpty }
@@ -40,10 +42,13 @@ struct ThroughputCard: View {
         }
     }
 
-    // 速率四格排成 2×2 而不是一行：旧两栏时代这卡只占半栏，一行四格会把
-    // 「下行（设备 → 本机）」这类说明挤到截断。现在卡住了「吞吐」页的 640pt
-    // 全宽，一行放得下 —— 但本轮改版只动布局不动卡内排版，先保留 2×2，
-    // 留到下次视觉迭代再评估（见 ThroughputPage）。
+    // The four rate tiles form a 2x2 grid, not one row: in the
+    // two-column era this card had half a window column, and one row
+    // of four would have squeezed captions like "Downstream (device
+    // -> this Mac)" into truncation. The card now gets the Throughput
+    // page's full 640pt and a row would fit; but this redesign
+    // changed only the layout around the cards, not inside them.
+    // Keeping 2x2 for the next visual pass (see ThroughputPage).
     private var rateRow: some View {
         Grid(alignment: .leading,
              horizontalSpacing: Design.Spacing.medium,

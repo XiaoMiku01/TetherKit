@@ -1,13 +1,15 @@
 import SwiftUI
 import TetherKitIPC
 
-/// 「日志」页。
+/// The "Log" page.
 ///
-/// 与其他页有一个结构差异：**不走页面级 ScrollView**。日志的核心价值之一是
-/// 「窗口越大看到的越多」—— 列表应当随窗口长高，而不是被外层滚动层量成
-/// 一个固定理想尺寸后在页脚剩余一片空白。其它页的滚动由 `SidebarShell`
-/// 统一接管，这一页自带高度语义（见 LogCard 的 `fillsAvailableHeight`），
-/// 因此在 shell 里走单独分支。
+/// One structural difference from every other page: no page-level
+/// ScrollView. A core value of the log is "a bigger window sees more
+/// entries". The list should grow with the window, not get measured at
+/// a fixed ideal size by an outer scroll container and leave blank
+/// space under the page. SidebarShell handles scrolling for the other
+/// pages; this page owns its height semantics (see LogCard's
+/// `fillsAvailableHeight`) and branches separately in the shell.
 struct LogPage: View {
     @Bindable var model: AppModel
 

@@ -1,16 +1,21 @@
 import SwiftUI
 import TetherKitIPC
 
-/// 主窗口侧边栏里的一个页面。
+/// One page of the main window's sidebar.
 ///
-/// 页面的组织原则延续 ContentView 旧布局的一句注释：**把「用哪台设备 / 怎么上网」
-/// 跟「跑得怎么样 / 出了什么事」分开**。侧边栏把这句升级成空间上的分区 ——
-/// 连接是唯一的操作重心，自然排第一；观测类页面（吞吐、日志）往后排；
-/// 管理类动作（装 / 卸特权组件）一年也就碰几次，放最后。
+/// The organizing rule carries over from the old ContentView layout:
+/// separate "which device / how to get online" from "how it is running /
+/// what went wrong". The sidebar turns that into spatial order:
+/// Connection is the only place the user acts from, so it goes first;
+/// observability pages (Throughput, Log) come later; admin tasks
+/// (install/uninstall the privileged helper) happen a few times a year
+/// and go last.
 ///
-/// 页面顺序是刻意固定的：不要 alphabetical —— 排序的依据是「多久碰一次」，
-/// 不是字典。选项的记忆（`@SceneStorage`）按 `rawValue` 存，因此**改名会
-/// 丢一次选中记忆**，而调整位置 / 新增页面不会 —— 改名前想一下。
+/// The order is fixed on purpose, not alphabetical. Sort key is
+/// "how often you touch it", not a dictionary. Selection is remembered
+/// via `@SceneStorage` by `rawValue`, so RENAMING a case drops the
+/// stored selection once, while reordering or adding pages does not.
+/// Think before renaming.
 enum SidebarPage: String, CaseIterable, Identifiable, Hashable {
     case connection
     case network
@@ -32,7 +37,7 @@ enum SidebarPage: String, CaseIterable, Identifiable, Hashable {
 
     var title: String { L(titleKey) }
 
-    /// 页面图标的 SF Symbol。
+    /// SF Symbol for the page icon.
     var symbol: String {
         switch self {
         case .connection: return "cable.connector"
@@ -43,8 +48,9 @@ enum SidebarPage: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
-    /// 图标底的配色。彩色方块图标是参考 UI（Hand Mirror / Dropover）最显眼的
-    /// 视觉语言之一，每页一个固定色。
+    /// Tile color. A colored tile behind each icon is one of the most
+    /// recognizable visual cues in the reference UIs (Hand Mirror /
+    /// Dropover); every page gets a fixed color.
     var tint: Color {
         switch self {
         case .connection: return .blue
@@ -58,10 +64,11 @@ enum SidebarPage: String, CaseIterable, Identifiable, Hashable {
 
 extension SidebarPage {
 
-    /// 「连接」页图标随会话状态变色的那条规则。
+    /// The Connection tile changes color with session state.
     ///
-    /// 侧边栏是常驻视野：会话在跑时连图标都泛绿，余光就能确认连接还活着。
-    /// 其余页面是固定色 —— 状态语义只属于连接这一页。
+    /// The sidebar is always in view: while a session runs, even the icon
+    /// turns green, so a glance confirms the connection is alive. Other
+    /// pages keep fixed colors; state semantics belong to this page only.
     static func tint(for page: SidebarPage, status: SessionStatus) -> Color {
         guard case .connection = page else { return page.tint }
         switch status.runState {

@@ -1,20 +1,25 @@
 import SwiftUI
 import TetherKitIPC
 
-/// 「管理」页：特权组件的安装状态与维护动作。
+/// The "Manage" page: privileged helper status and maintenance actions.
 ///
-/// 内容全部来自旧布局里挤在主界面左栏底部的那条 caption 尾注 —— 页面化之后
-/// 它终于有空间说清自己在维护什么。逻辑与 `AppModel` 的交互一字未改：
-/// 安装 / 更新走 `installHelper()`，确认弹窗规则也不变（跑着会话时更新要先问）。
+/// All of it used to be a caption footer squeezed at the bottom of the
+/// old layout's left column. As a page it finally has room to say what
+/// it maintains. Logic and `AppModel` interaction are unchanged:
+/// installs/updates go through `installHelper()`, and the confirmation
+/// rules still hold (updating while a session runs asks first).
 struct ManagePage: View {
     @Bindable var model: AppModel
 
-    /// 卸载是破坏性动作（断开连接、删系统文件），必须先确认。
+    /// Uninstall is destructive (disconnects, removes system files),
+    /// so it asks first. 
     @State private var confirmingHelperUninstall = false
 
-    /// 更新组件时**正跑着会话**才需要确认 —— 安装脚本会先 bootout 旧组件，
-    /// 那一下会把连接掐掉。空闲时更新什么都不会毁，再拦一道只会给本来就该
-    /// 尽快做的事平添阻力。
+    /// Only an update that would hit a RUNNING session needs
+    /// confirmation. The install scripts bootout the old component
+    /// first, which cuts the connection. Updating while idle breaks
+    /// nothing, and one more gate would only slow down something that
+    /// should be quick.
     @State private var confirmingHelperUpdate = false
 
     var body: some View {
@@ -50,8 +55,10 @@ struct ManagePage: View {
             : base
     }
 
-    /// 组件版本与更新入口。版本不一致时这一块从「参考信息」变成「有件事
-    /// 等着你做」：两个版本号一起摆出来，颜色也从 tertiary 提到 orange。
+    /// Helper version and the update entry. On a version mismatch this
+    /// block turns from reference info into "there is a task waiting":
+    /// both version numbers show side by side, and the color steps up
+    /// from tertiary to orange.
     @ViewBuilder
     private var stateRows: some View {
         if case .available(let version) = model.helperAvailability {
@@ -64,9 +71,11 @@ struct ManagePage: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                     Spacer(minLength: Design.Spacing.small)
-                    // 忙的时候换成「正在安装……」而不是只把按钮置灰：授权框关掉
-                    // 之后要等好几秒（bootout → 拷文件 → bootstrap → 探活），
-                    // 一个灰掉的按钮看起来像是点了没反应。
+                    // While busy, swap the label to "installing instead
+                    // of just graying out the button: after the
+                    // authorization dialog closes, the wait is several
+                    // seconds (bootout, copy, bootstrap, liveness probe).
+                    // A gray button looks like a tap that did nothing.
                     Button(model.isBusy ? L(.installingProgress) : L(.updateHelperButton)) {
                         requestHelperUpdate()
                     }
@@ -83,9 +92,12 @@ struct ManagePage: View {
                         .minimumScaleFactor(0.8)
                     Spacer(minLength: Design.Spacing.small)
                     if let update = model.availableUpdate {
-                        // 版本一致但 GitHub 上有新 Release：升级要去终端敲 brew，
-                        // 只是「知道一下」。与版本不一致互斥展示 ——
-                        // 版本不一致是当场点一下就能解决的，让位给它。
+                        // Versions match but a newer Release exists on
+                        // GitHub. Upgrading means typing brew in a
+                        // terminal, so this badge is informational only.
+                        // Mutually exclusive with the mismatch banner:
+                        // a mismatch is a one-tap fix that should take
+                        // the foreground. The update badge yields.
                         Button(L(.helperUpdateBadge, update.version)) {
                             model.updateCheckResult = .updateAvailable(update)
                         }
@@ -96,8 +108,9 @@ struct ManagePage: View {
         }
     }
 
-    /// 卸载入口。极低频的管理动作：低调，但必须有 —— 不然组件「装得上、
-    /// 删不掉」，只能回终端翻脚本。
+    /// Uninstall entry. A rare admin action: quiet, but present.
+    /// Without it the helper would be "installable but unremovable"
+    /// and users would dig for scripts in a terminal.
     private var uninstallRow: some View {
         HStack(alignment: .center, spacing: Design.Spacing.small) {
             Text(L(.uninstallExplanation))
@@ -110,7 +123,8 @@ struct ManagePage: View {
         }
     }
 
-    /// 「更新特权组件」被点了。跑着会话才先确认 —— 见 `confirmingHelperUpdate`。
+    /// "Update privileged helper" tapped. Confirms only while a session
+    /// is running: see `confirmingHelperUpdate`.
     private func requestHelperUpdate() {
         if model.status.runState == .running {
             confirmingHelperUpdate = true
