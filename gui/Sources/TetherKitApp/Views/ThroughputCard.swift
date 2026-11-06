@@ -9,10 +9,18 @@ import TetherKitIPC
 struct ThroughputCard: View {
     @Bindable var model: AppModel
 
+    /// 页面化开关。吞吐卡现在是「吞吐」页的主体 —— 页头本身写着「吞吐」，
+    /// 卡片自我介绍的标题行要能关掉，避免同一层级出现两次。
+    /// 「实时」徽标随标题行一起走：页面化时由页面头负责渲染它
+    /// （见 ThroughputPage）。
+    var showsTitleRow: Bool = true
+
     private var hasData: Bool { !model.throughputHistory.isEmpty }
 
     var body: some View {
-        Card(title: L(.throughputSectionTitle), systemImage: "chart.line.uptrend.xyaxis", accessory: AnyView(liveBadge)) {
+        Card(title: showsTitleRow ? L(.throughputSectionTitle) : nil,
+             systemImage: showsTitleRow ? "chart.line.uptrend.xyaxis" : nil,
+             accessory: showsTitleRow ? AnyView(liveBadge) : nil) {
             VStack(alignment: .leading, spacing: Design.Spacing.medium) {
                 rateRow
                 chart
@@ -32,8 +40,10 @@ struct ThroughputCard: View {
         }
     }
 
-    // 速率四格排成 2×2 而不是一行：这卡现在住在半栏里，一行四格会把
-    // 「下行（设备 → 本机）」这类说明挤到截断。
+    // 速率四格排成 2×2 而不是一行：旧两栏时代这卡只占半栏，一行四格会把
+    // 「下行（设备 → 本机）」这类说明挤到截断。现在卡住了「吞吐」页的 640pt
+    // 全宽，一行放得下 —— 但本轮改版只动布局不动卡内排版，先保留 2×2，
+    // 留到下次视觉迭代再评估（见 ThroughputPage）。
     private var rateRow: some View {
         Grid(alignment: .leading,
              horizontalSpacing: Design.Spacing.medium,

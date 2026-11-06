@@ -38,21 +38,6 @@ struct TetherKitApplication: App {
     }
 
     var body: some Scene {
-        Window("TetherKit", id: "main") {
-            MainWindowRoot(model: model)
-        }
-        // 用 Window 而不是 WindowGroup：这是一个「设备连接面板」，开多个窗口
-        // 没有意义，反而会让多个实例同时轮询同一个 helper。
-        .defaultSize(width: Design.Window.defaultWidth, height: Design.Window.defaultHeight)
-        .windowResizability(.contentMinSize)
-        .commands {
-            // 「新建窗口」对单窗口应用没有意义，去掉免得用户点了没反应。
-            CommandGroup(replacing: .newItem) {}
-            // 「检查更新…」放在 App 菜单「关于」下面的惯例位置。
-            // 只查不换 —— 原因见 UpdateChecker.swift 的类型注释。
-            CommandGroup(after: .appInfo) { AppMenuItems(model: model) }
-        }
-
         // 菜单栏常驻项：图标 + 实时速率。
         //
         // 用 .window 风格给一块小面板而不是一列菜单 —— 速率、地址这些信息是要
@@ -63,6 +48,33 @@ struct TetherKitApplication: App {
             MenuBarLabel(model: model)
         }
         .menuBarExtraStyle(.window)
+        mainScene
+    }
+
+    /// 主窗口场景。
+    ///
+    /// 用 Window 而不是 WindowGroup：这是一个「设备连接面板」，开多个窗口
+    /// 没有意义，反而会让多个实例同时轮询同一个 helper。
+    ///
+    /// 标题栏隐藏（`.hiddenTitleBar`）：侧边栏从窗口顶贯通到底，红绿黄三灯
+    /// 直接浮在侧边栏上 —— 参考设置窗（Hand Mirror / Dropover）的标准做法。
+    /// 窗口仍可从顶部的隐藏标题栏区域拖动；`SceneBuilder` 不支持
+    /// `if #available` 分支，所以 macOS 15 的 `windowBackgroundDragBehavior`
+    /// （按背景拖动）要等平台下限提高才能加。
+    private var mainScene: some Scene {
+        Window("TetherKit", id: "main") {
+            MainWindowRoot(model: model)
+        }
+        .windowStyle(.hiddenTitleBar)
+        .defaultSize(width: Design.Window.defaultWidth, height: Design.Window.defaultHeight)
+        .windowResizability(.contentMinSize)
+        .commands {
+            // 「新建窗口」对单窗口应用没有意义，去掉免得用户点了没反应。
+            CommandGroup(replacing: .newItem) {}
+            // 「检查更新…」放在 App 菜单「关于」下面的惯例位置。
+            // 只查不换 —— 原因见 UpdateChecker.swift 的类型注释。
+            CommandGroup(after: .appInfo) { AppMenuItems(model: model) }
+        }
     }
 }
 
@@ -139,6 +151,7 @@ private struct MainWindowRoot: View {
     var body: some View {
         ContentView(model: model)
             .frame(minWidth: Design.Window.minWidth, minHeight: Design.Window.minHeight)
+            .handleSelfCaptureRequest()
             // 文案来自全局查表，改语言不会让任何 @Observable 属性「看起来」变了，
             // SwiftUI 因此不会重算视图体。用一个显式的版本号做 identity，
             // 强制整棵树重建 —— 语言切换是极低频动作，这点代价无所谓。

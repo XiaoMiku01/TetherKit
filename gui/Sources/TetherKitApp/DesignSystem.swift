@@ -29,16 +29,14 @@ enum Design {
 
     /// 窗口尺寸。
     ///
-    /// 布局的硬目标是**默认尺寸下整页不滚动**（见 ContentView）。
-    /// 宽度的依据：两栏布局，每栏至少放得下静态 IP 表单的一行两格
-    /// （两个「标签 + 255.255.255.255」的输入格并排）。
-    /// 高度的依据：左栏最高的状态 —— 静态模式表单展开且「当前生效」同时
-    /// 显示 —— 也要放得下。
+    /// 侧边栏改版后「整页不滚动」的目标按页落实：连接页一张屏内放完；网络页
+    /// 静态表单展开时允许本页滚动。窗口因此可以从两栏时代的 990×780 收坐到
+    /// 参考设置窗的紧凑尺寸 —— 宽度 = 侧边栏 204 + 内容最大 640 + 左右留白。
     enum Window {
-        static let minWidth: CGFloat = 900
-        static let minHeight: CGFloat = 700
-        static let defaultWidth: CGFloat = 990
-        static let defaultHeight: CGFloat = 780
+        static let minWidth: CGFloat = 720
+        static let minHeight: CGFloat = 500
+        static let defaultWidth: CGFloat = 800
+        static let defaultHeight: CGFloat = 560
     }
 
     // MARK: - 状态色

@@ -214,6 +214,15 @@ public enum L10nKey: String, CaseIterable, Sendable {
     case logRepeatSuffix
     case logRepeatTooltip
 
+    // MARK: - 侧边栏页面（SidebarPage.swift）
+
+    case pageConnectionTitle
+    case pageNetworkTitle
+    case pageThroughputTitle
+    case pageLogTitle
+    case pageManageTitle
+    case manageHelperSectionTitle
+
     // MARK: - 菜单栏面板（MenuBarPanel.swift）
 
     case downstreamShort
@@ -722,6 +731,15 @@ extension L10nKey {
         case .upstreamDropped: return ("上行丢弃", "Up dropped")
         case .kernelDrops: return ("内核丢包", "Kernel drops")
         case .transmitBackpressure: return ("发送背压", "TX backpressure")
+
+        // MARK: 侧边栏页面
+
+        case .pageConnectionTitle: return ("连接", "Connection")
+        case .pageNetworkTitle: return ("网络", "Network")
+        case .pageThroughputTitle: return ("吞吐", "Throughput")
+        case .pageLogTitle: return ("日志", "Log")
+        case .pageManageTitle: return ("管理", "Manage")
+        case .manageHelperSectionTitle: return ("特权组件", "Privileged helper")
         }
     }
 }
