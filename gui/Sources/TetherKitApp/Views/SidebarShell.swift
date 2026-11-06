@@ -33,30 +33,30 @@ struct SidebarShell: View {
     }
 
     private func select(_ page: SidebarPage) {
-        // Deliberately instant, and clamped twice:
+        // Deliberately instant, clamped on three layers:
         //
-        //   1. Here, by forcing the transaction for the storedPage write.
-        //      Removing withAnimation was not enough: a real button click
-        //      runs this action inside whatever animated transaction macOS
-        //      26 gives button activations, and an animated transaction at
-        //      the insertion point reads as a "bulge" (the content starts
-        //      ~10% over-scaled and shrinks in over ~0.3s). The burst
-        //      self-capture proved the point: timer-driven swaps through
-        //      this same method swap content in exactly one frame
-        //      (pixel-identical afterwards), while clicks reproduced the
-        //      bulge — the difference is the transaction the click carries.
-        //   2. At the insertion boundaries: content and pageBody attach
-        //      .transition(.identity) so a page's enter/exit is never
-        //      interpolated, whatever the surrounding transaction says.
+        //   1. The write hops out of the button-activation turn. macOS 26
+        //      wraps Button actions in an animated transaction for the
+        //      press/label state, and the click context is the only place
+        //      the residual page-insertion interpolation lived: timer-driven
+        //      swaps through this same method are pixel-clean. A next-hop
+        //      write lands in a fresh transaction exactly like the timer
+        //      path.
+        //   2. The write itself carries an instant transaction
+        //      (`animation = nil`, `disablesAnimations = true`) so any
+        //      caller that skips the crawl hop still swaps clean.
+        //   3. content/pageBody attach .transition(.identity) so a page's
+        //      enter/exit is never interpolated, whatever drives it.
         //
-        // Settings-style sidebars swap pages without animation. The clamps
-        // are scoped to this swap; in-page animations (LogCard's
-        // auto-scroll, StatusHeroCard's live pulse) own their transactions
-        // and stay untouched.
+        // In-page animations (LogCard auto-scroll, StatusHeroCard pulse)
+        // own their transactions and are untouched. Rows also bypass the
+        // system activation machinery entirely (InstantButtonStyle).
         var instant = Transaction()
         instant.animation = nil
         instant.disablesAnimations = true
-        withTransaction(instant) { storedPage = page.rawValue }
+        DispatchQueue.main.async {
+            withTransaction(instant) { self.storedPage = page.rawValue }
+        }
     }
 
     /// Keyboard focus target so Up/Down arrows cycle the pages (the rows
@@ -302,7 +302,7 @@ private struct SidebarRow: View {
             .background(rowBackground, in: RoundedRectangle(cornerRadius: 7))
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(InstantButtonStyle())
         .onHover { isHovering = $0 }
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
@@ -321,5 +321,20 @@ private struct SidebarRow: View {
             return Color.primary.opacity(0.08)
         }
         return isHovering ? Color.primary.opacity(0.04) : Color.clear
+    }
+}
+
+/// A primitive button style that only performs the action: no activation
+/// highlight machinery, no animated transaction around the action's view
+/// updates. macOS 26's default activation wraps button actions in an
+/// animated transaction; that is the click-only context the page-insertion
+/// interpolation escaped through. Selected and hover styling is hand-drawn
+/// in the row already.
+private struct InstantButtonStyle: PrimitiveButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .transaction { t in t.animation = nil }
+            .contentShape(Rectangle())
+            .simultaneousGesture(TapGesture().onEnded { configuration.trigger() })
     }
 }
