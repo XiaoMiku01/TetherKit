@@ -1,36 +1,43 @@
 import AppKit
 import SwiftUI
 
-// 视觉迭代的自截工具（dev 用）。
+// Dev tool for the visual iteration loop: window self-capture.
 //
-// 背景：给 App 窗口截图走系统 Screen Recording 权限，在无头 / CI / 代理会话里
-// 拿不到。**App 截自己的窗口**不受该权限约束 —— 直接用窗口号把自己画进位图
-// （CGWindowListCreateImage 支持「选自己的窗口」，等价于窗口截图的效果）。
+// Background: screenshotting the app window requires the macOS Screen
+// Recording permission, which is unavailable in headless / CI / agent
+// sessions. An app capturing ITS OWN window is not gated by that
+// permission. Drawing the window by its window number into a bitmap
+// (CGWindowListCreateImage with "own window" selection) does the job.
 //
-// 调用约定（调试用启动参数）：
+// Invocation (debug launch arguments):
 //
-//   ./TetherKit -SelfCapture /tmp/out.png -TetherKitLanguagePreference chinese
+//     ./TetherKit -SelfCapture /tmp/out.png -TetherKitLanguagePreference chinese
 //
-//   * `-SelfCapture <path>`：窗口稳定后截窗写 PNG，随即 terminate；
-//   * 语言也用参数域 UserDefaults 强制（`-TetherKitLanguagePreference
-//     <chinese|english>`，argument domain 的优先级高于普通存储）。
+//   * -SelfCapture <path>: after the window settles, capture it to PNG
+//     and terminate.
+//   * Language is forced through the argument domain of UserDefaults
+//     (-TetherKitLanguagePreference <chinese|english>); the argument
+//     domain outranks normal storage.
 //
-// 这个文件只有几十行，换来的是「改一版界面 → 自动截窗 → 看 PNG」这个循环
-// 不依赖任何屏幕权限。退役条件：整个自截流程被 CI 里某个正经方案替代。
+// A few dozen lines here buy the "edit UI, auto-capture, view PNG"
+// loop without any screen permission. Retire it when CI grows a real
+// replacement.
 
-/// 自截的驱动逻辑。
+/// Driver logic for the self-capture.
 enum UiSelfCapture {
 
-    /// 解析启动参数里的输出路径；没有该参数时返回 nil（正常启动）。
+    /// Output path parsed from the launch arguments; nil when absent
+    /// (normal launch).
     static func requestedOutputPath() -> String? {
         let arguments = CommandLine.arguments
         return arguments.firstIndex(of: "-SelfCapture")
             .flatMap { index in index + 1 < arguments.count ? arguments[index + 1] : nil }
     }
 
-    /// 窗口就绪后安排一次截窗 + 退出。
+    /// Schedules one capture + quit once the window is ready.
     static func schedule(_ window: NSWindow, outputPath: String) {
-        // 留时间给布局、语言恢复与首个状态轮询：1.5 秒后画面完全稳定。
+        // Leave time for layout, language restore, and the first status
+        // poll: after 1.5 seconds the picture is fully settled.
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             capture(window, to: outputPath)
             NSApp.terminate(nil)
@@ -38,8 +45,9 @@ enum UiSelfCapture {
     }
 
     private static func capture(_ window: NSWindow, to path: String) {
-        // 首选：按窗口号整窗位图（`boundsIgnoreFraming` 把窗口圆角外的
-        // 投影留白裁掉，方便逐像素比对外观）。
+        // First choice: a full-window bitmap by window number with
+        // `boundsIgnoreFraming`, which trims the shadow margin outside
+        // the rounded corners and makes pixel-level comparison possible.
         let id = CGWindowID(window.windowNumber)
         if let cg = CGWindowListCreateImage(.null, .optionIncludingWindow, id,
                                             [.boundsIgnoreFraming, .bestResolution]) {
@@ -49,8 +57,10 @@ enum UiSelfCapture {
                 return
             }
         }
-        // 回退：内容视图的视图树缓存渲染。SwiftUI 的 Hosting 视图支持这条
-        // 路径；material 模糊会被压成近似底色，足够判断布局。
+        // Fallback: cached display render of the content view tree.
+        // SwiftUI hosting views support this; blur materials end up as
+        // an approximation of the base color, which is enough to judge
+        // layout.
         guard let view = window.contentView,
               let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
         view.cacheDisplay(in: view.bounds, to: rep)
@@ -60,10 +70,12 @@ enum UiSelfCapture {
     }
 }
 
-/// 视图挂在窗口上时检查并挂起一次自截任务。
+/// Checks and schedules the self-capture when the view lands in a
+/// window.
 ///
-/// 需要一个真正放进窗口的视图才能摸到 NSWindow；零尺寸探针不影响布局。
-/// 主窗口根视图上 `.background(SelfCaptureProbe())` 挂一次即可。
+/// Only a view actually placed into a window can reach the NSWindow;
+/// the zero-size probe does not affect layout. Attach once as
+/// `.background(SelfCaptureProbe())` on the main window's root view.
 struct SelfCaptureProbe: NSViewRepresentable {
     func makeNSView(context: Context) -> ProbeView { ProbeView() }
     func updateNSView(_ view: ProbeView, context: Context) {}
@@ -77,15 +89,17 @@ struct SelfCaptureProbe: NSViewRepresentable {
             UiSelfCapture.schedule(window!, outputPath: path)
         }
 
-        /// SwiftUI 的视图会反复被装进 / 移出窗口（语言切换就会整树重建），
-        /// 一次截窗任务只排一次。
+        /// SwiftUI repeatedly mounts and unmounts views (a language
+        /// switch rebuilds the whole tree), so the capture is scheduled
+        /// exactly once.
         private static var scheduled = false
     }
 }
 
 extension View {
 
-    /// 窗口若处于自截模式（`-SelfCapture` 启动参数），窗口就绪后自动截窗写 PNG。
+    /// In self-capture mode (-SelfCapture launch argument), the window
+    /// writes one PNG after it settles.
     func handleSelfCaptureRequest() -> some View {
         background(SelfCaptureProbe())
     }

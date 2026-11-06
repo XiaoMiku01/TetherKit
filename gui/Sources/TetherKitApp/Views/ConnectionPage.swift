@@ -1,12 +1,14 @@
 import SwiftUI
 import TetherKitIPC
 
-/// 侧边栏布局下的「连接」页 —— 整个 App 的操作重心。
+/// The "Connection" page under the sidebar layout: the app's single
+/// point of action.
 ///
-/// 从上到下：状态横幅（现在通不通、要不要断开）→ 环境警告（不合格才出现）
-/// → 设备选择（用哪台设备、MTU/MAC 想怎么连）。上网方式的配置已拆去
-/// 「网络」页 —— 连接前唯一要做的决定就是选好设备，其余决定等网卡建出来
-/// 再做才有意义。
+/// Top to bottom: status hero (running or not, disconnect if needed)
+/// then environment warning (only when the environment fails) then
+/// device selection (which device, MTU/MAC). Network setup moved to the
+/// "Network" page. The only decision before connecting is the device;
+/// every other decision makes sense once the network interface exists.
 struct ConnectionPage: View {
     @Bindable var model: AppModel
 
@@ -19,7 +21,9 @@ struct ConnectionPage: View {
     }
 }
 
-/// 环境预检不合格时的警告。合格时不显示 —— 一切正常时不该占用户的注意力。
+/// Warning shown when the environment check fails. Hidden when it
+/// passes: when nothing is wrong, do not take any of the user's
+/// attention.
 struct EnvironmentWarningCard: View {
     let environment: EnvironmentReport?
 

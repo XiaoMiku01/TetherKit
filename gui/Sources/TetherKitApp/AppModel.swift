@@ -288,14 +288,17 @@ final class AppModel {
     /// 「3 秒内登记过」就算数 —— 一次性标志在「窗口已开着时再点打开」这类
     /// 路径上会残留，时间窗天然自愈。
     ///
-    /// 例外：开发期裸可执行文件（`swift build` / `swift run`，没有 bundle id）。
-    /// 裸可执行的初始窗口被 SwiftUI 推迟到收到**显式 openWindow** 的时机
-    /// （现象与结论留档在 TetherKitApp.swift 顶部），窗口何时出现不归时间窗
-    /// 管；时间窗在 dev 下只会误拦。授权语义不受影响——打包的 .app 有
-    /// bundle id，仍走时间窗。
+    /// Exception: bare dev binaries (swift build / swift run output,
+    /// no bundle id). SwiftUI defers their initial window until an
+    /// explicit openWindow arrives (behavior and findings documented at
+    /// the top of TetherKitApp.swift), so when the window appears is
+    /// not the time window's business; in dev the guard would only
+    /// misfire. Authorization semantics untouched: packaged .app files
+    /// have a bundle id and still go through the time window.
     ///
-    /// 例外二：自截模式（`-SelfCapture`，见 UiSelfCapture）—— 脚本点火窗口，
-    /// 同理直接放行。
+    /// Second exception: self-capture mode (-SelfCapture, see
+    /// UiSelfCapture). A script presents the window; allowed for the
+    /// same reason.
     func isWindowPresentationExpected() -> Bool {
         if Bundle.main.bundleIdentifier == nil { return true }
         if CommandLine.arguments.contains("-SelfCapture") { return true }

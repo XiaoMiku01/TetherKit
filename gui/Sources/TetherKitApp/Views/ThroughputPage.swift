@@ -1,11 +1,12 @@
 import SwiftUI
 import TetherKitIPC
 
-/// 「吞吐」页：实时速率图表与累计计数器。
+/// The "Throughput" page: live rate chart and cumulative counters.
 ///
-/// 卡片自带标题行被关掉（页头已经写着「吞吐」，同一层级出现两次很怪），
-/// 而「实时」徽标从卡片头搬到页头右侧 —— 它表明的性质属于整页，
-/// 不属于卡里的某一格。
+/// The card's own title row is off here; the page header already says
+/// "Throughput", and repeating it at the same level reads as a bug.
+/// The LIVE badge moved from the card header to the right side of the
+/// page header: it describes the whole page, not one grid cell.
 struct ThroughputPage: View {
     @Bindable var model: AppModel
 

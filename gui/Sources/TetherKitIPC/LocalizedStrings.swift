@@ -214,7 +214,7 @@ public enum L10nKey: String, CaseIterable, Sendable {
     case logRepeatSuffix
     case logRepeatTooltip
 
-    // MARK: - 侧边栏页面（SidebarPage.swift）
+    // MARK: - Sidebar pages (SidebarPage.swift)
 
     case pageConnectionTitle
     case pageNetworkTitle
@@ -732,7 +732,7 @@ extension L10nKey {
         case .kernelDrops: return ("内核丢包", "Kernel drops")
         case .transmitBackpressure: return ("发送背压", "TX backpressure")
 
-        // MARK: 侧边栏页面
+        // MARK: Sidebar pages
 
         case .pageConnectionTitle: return ("连接", "Connection")
         case .pageNetworkTitle: return ("网络", "Network")

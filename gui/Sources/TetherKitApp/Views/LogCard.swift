@@ -1,32 +1,39 @@
 import SwiftUI
 import TetherKitIPC
 
-/// 日志面板。
+/// Log panel.
 ///
-/// 布局这支笔有两档：
+/// Two layout modes:
 ///
-///   * 旧 Dashboard 时代它常驻右栏底部，吃掉两栏剩下的高度；（弹性层钉死
-///     `idealHeight` 的原因见 `logList` —— 外层兜底 ScrollView 用理想尺寸
-///     测内容，而内嵌 ScrollView 的理想高度 = 全部日志展开的高度。）
-///   * 侧边栏改版后它独占一页（`fillsAvailableHeight`）：不再有外层滚动，
-///     列表随窗口一起长高，`minHeight` 只作为极端窗口下的下限保底。
+///   * Old dashboard era: pinned at the bottom of the right column,
+///     absorbing the columns' remaining height. (Why the flex layer
+///     pins `idealHeight`, see `logList`: the outer ScrollView measures
+///     content by ideal size, and an embedded ScrollView's ideal height
+///     equals all logs fully expanded.)
+///   * Sidebar redesign: the card owns its page (`fillsAvailableHeight`).
+///     No outer scroll, the list grows with the window, and `minHeight`
+///     is only a floor for extreme window sizes.
 ///
-/// 出问题时它是唯一有用的东西，所以做了三件事：可按级别过滤、自动滚到底、
-/// 一键复制全部（用户报 issue 时能直接贴过来）。
+/// When something breaks, this is the only tool that helps, so it does
+/// three things: filter by level, auto-scroll to the newest line,
+/// copy everything in one tap (users paste it straight into an issue).
 struct LogCard: View {
     @Bindable var model: AppModel
     @State private var autoScroll = true
 
-    /// 独占整页时置 true：列表撑满页面剩余高度。
-    /// 为 false 时维持旧右栏底部形态（钉死的 90pt 弹性层）。
+    /// True when the card owns its page: the list fills the remaining
+    /// page height. False keeps the old bottom-of-right-column shape
+    /// (the pinned 90pt flex layer).
     var fillsAvailableHeight: Bool = false
 
     var body: some View {
         Card(title: L(.logSectionTitle), systemImage: "text.alignleft") {
             VStack(alignment: .leading, spacing: Design.Spacing.small) {
                 toolbar
-                // 高度两档的分岔点。卡片圈住的这一层是 flex 的吸收层：
-                // 页面化时随窗口长高；旧两栏形态下钉死理想高度（原因见 logList）。
+                // Two-mode fork. This layer is the flex absorber inside
+                // the card: it grows with the window in page mode; the
+                // old two-column shape pins the ideal height (see
+                // logList).
                 if fillsAvailableHeight {
                     logList.frame(minHeight: 288, maxHeight: .infinity)
                 } else {
@@ -94,7 +101,8 @@ struct LogCard: View {
         }
     }
 
-    /// 列表本体：不带高度语义（由调用点的两档 frame 决定）。
+    /// The list body itself: no height semantics of its own (the
+    /// caller's two-mode frame decides that).
     private var listBody: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 2) {

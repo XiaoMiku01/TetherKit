@@ -29,14 +29,18 @@ struct TetherKitApplication: App {
             print(FinderAlias.ensure(for: Bundle.main.bundleURL))
             exit(0)
         }
-        // macOS 26 实测踩坑：**裸可执行**（swift build 的产物，没有 bundle id）
-        // 启动时激活策略是 .prohibited，而 SwiftUI 对「无激活权」的 App 不实例化
-        // Window 场景的窗口 —— 主窗口永远不出现，只能靠菜单栏「打开主窗口」救回
-        // （那个按钮走 openWindow 前先把策略改回 .regular，所以能用）。
-        // 打包的 .app 由 LaunchServices 给 .regular，这里永远不会命中；补一次
-        // 只服务裸可执行的启动自检。插桩证据见 AGENTS.md 第 7 节。
-        // NSApp 这个全局是隐式拆包的可选值，NSApplication 建好之前是 nil，
-        // 这里必须用 NSApplication.shared 显式初始化 AppKit。
+        // macOS 26 measured quirk: a bare executable (swift build output,
+        // no bundle id) launches with the .prohibited activation policy,
+        // and SwiftUI does not instantiate the Window scene's window for
+        // an app without activation rights. The main window never shows
+        // up on its own; the menu bar's "Open Main Window" rescues it
+        // (that button moves the policy back to .regular before
+        // openWindow). A packaged .app gets .regular from LaunchServices,
+        // so this branch never fires for it and exists only for the dev
+        // launch self-check. Evidence in AGENTS.md section 7.
+        // The NSApp global is an implicitly unwrapped optional and nil
+        // until NSApplication exists; use NSApplication.shared here to
+        // initialize AppKit.
         if NSApplication.shared.activationPolicy() == .prohibited {
             NSApplication.shared.setActivationPolicy(.regular)
         }
@@ -49,10 +53,10 @@ struct TetherKitApplication: App {
     }
 
     var body: some Scene {
-        // 菜单栏常驻项：图标 + 实时速率。
-        //
-        // 用 .window 风格给一块小面板而不是一列菜单 —— 速率、地址这些信息是要
-        // 「看」的，不是要「选」的，菜单条目装不下。
+        // Persistent menu bar item: icon + live rate.
+        // The .window style gives it a small panel instead of a menu
+        // list: rates and addresses are things you look at, not things
+        // you pick, and menu items can't hold them.
         MenuBarExtra {
             MenuBarPanel(model: model)
         } label: {
@@ -62,16 +66,19 @@ struct TetherKitApplication: App {
         mainScene
     }
 
-    /// 主窗口场景。
+    /// Main window scene.
     ///
-    /// 用 Window 而不是 WindowGroup：这是一个「设备连接面板」，开多个窗口
-    /// 没有意义，反而会让多个实例同时轮询同一个 helper。
+    /// Window, not WindowGroup: this is a single-device connection
+    /// panel. Opening more windows would mean more instances polling
+    /// one helper.
     ///
-    /// 标题栏隐藏（`.hiddenTitleBar`）：侧边栏从窗口顶贯通到底，红绿黄三灯
-    /// 直接浮在侧边栏上 —— 参考设置窗（Hand Mirror / Dropover）的标准做法。
-    /// 窗口仍可从顶部的隐藏标题栏区域拖动；`SceneBuilder` 不支持
-    /// `if #available` 分支，所以 macOS 15 的 `windowBackgroundDragBehavior`
-    /// （按背景拖动）要等平台下限提高才能加。
+    /// Title bar hidden (`.hiddenTitleBar`): the sidebar runs top to
+    /// bottom and the red/green/yellow lights float over it, the
+    /// standard move in the reference settings windows (Hand Mirror /
+    /// Dropover). The hidden title bar strip still drags the window.
+    /// SceneBuilder does not support `if #available` branches, so
+    /// macOS 15's `windowBackgroundDragBehavior` (drag by background)
+    /// waits until the platform floor rises.
     private var mainScene: some Scene {
         Window("TetherKit", id: "main") {
             MainWindowRoot(model: model)
@@ -203,17 +210,22 @@ func presentMainWindow(_ model: AppModel, _ openWindow: OpenWindowAction) {
     NSApp.activate(ignoringOtherApps: true)
 }
 
-// MARK: - 已查清的启动限制（2026-11-06 插桩定位，结论留档）
+// MARK: - Measured launch limitation (instrumented 2026-11-06, findings kept)
 //
-//   * 对象：**裸可执行**（`swift build` / `swift run` 的产物，没有 bundle id）。
-//   * 现象：macOS 26 实测启动时激活策略是 `.prohibited`，SwiftUI 对
-//     「政策未升级」的 App 不实例化 Window 场景的窗口；即便提前把策略改成
-//     `.regular`、甚至手动补发 activate，初始窗口也不出现 —— SwiftUI 只在
-//     收到**显式 openWindow** 时才把 Window 场景实例化。
-//   * 后果：dev 裸跑必须菜单栏 → 「打开主窗口」救一次；打包 .app 走
-//     LaunchServices 的首次激活路径，不受影响（v0.1.5 一路验证过）。
-//   * init() 里的 `.prohibited → .regular` 保留：它救不了初始窗口，但让
-//     裸可执行在救回窗口后具有正常 App 的激活语义（didBecomeActive 等），
-//     对打包版是无操作。插桩细节（11 个 NSStatusBarWindow 的杂音、
-//     窗口清单快照）不必复现；若未来要再查，加回
-//     `@NSApplicationDelegateAdaptor` + didFinishLaunching 打印即可。
+//   Applies to: bare executables (swift build / swift run output, no
+//   bundle id).
+//   Behavior: on macOS 26 they start with the .prohibited activation
+//   policy, and SwiftUI instantiates the Window scene's window only on
+//   an explicit openWindow. Upgrading the policy early, or sending a
+//   synthesized activate, does not present the initial window.
+//   Consequence: a dev run must reopen the window from the menu bar
+//   once ("Open Main Window"). A packaged .app goes through
+//   LaunchServices' first activation and is unaffected (verified
+//   through v0.1.5).
+//   The .prohibited to .regular check in init() stays: it cannot
+//   restore the initial window, but it gives the rescued bare binary
+//   normal activation semantics (didBecomeActive and friends) and is a
+//   no-op for a packaged app. Instrumentation details (the
+//   NSStatusBarWindow noise, window-list snapshots) need no
+//   re-derivation; if revisited, re-add an
+//   @NSApplicationDelegateAdaptor with didFinishLaunching printing.

@@ -10,10 +10,15 @@ import TetherKitIPC
 ///   静态模式我们只能尽力而为地补一个键，能不能被系统采纳取决于 IPMonitor。
 ///   与其向用户承诺一个可能不成立的结果，不如把真实状态摆出来。
 ///
-/// 这张卡住在「网络」页（NetworkPage），有 640pt 全宽可用。下面那段排版原则
-/// 是旧两栏时代的遗产：当时卡的高度直接决定左栏能不能一屏放下，于是输入格与
-/// 回读值都排成两列、长解释一律进悬停提示。本轮改版只动布局不动卡内排版 ——
-/// 两列网格在全宽页上依然成立（单列会把表单拉得又稀又高），先原样保留。
+/// This card lives on the "Network" page (NetworkPage) with a full
+/// 640pt of width. The typography rule below is a leftover from the
+/// two-column era: back then the card's height decided whether the
+/// left column fit on one screen, so input fields and readback values
+/// were laid out in two columns and long explanations all went into
+/// tooltips. This redesign changed the layout around the card, not
+/// the typography inside it: the two-column grid still holds on a
+/// full-width page (single column would stretch the form sparse and
+/// tall), so it stays as-is.
 struct NetworkCard: View {
     @Bindable var model: AppModel
 
@@ -96,8 +101,10 @@ struct NetworkCard: View {
         }
     }
 
-    /// 静态表单。四个地址格排成两列网格 —— 这里的理由从「半栏宽度足够」变成了
-    /// 「单列会把表单拉得又稀又高」；数值上 IPv4 本来就短，两列依然合适。
+    /// Static form. The four address fields sit in a two-column grid.
+    /// The reason changed from "half a column is wide enough" to "a
+    /// single column would stretch the form sparse and tall"; IPv4
+    /// values are short anyway, so two columns still fits.
     private var manualForm: some View {
         Grid(alignment: .leading,
              horizontalSpacing: Design.Spacing.medium,
