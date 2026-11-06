@@ -226,18 +226,23 @@ helper 根本没有它 —— 那就又回到了「对不上还查不出来」�
   在缓冲被写满、没有 NUL 时会越界读。
 - **非负值的 C 枚举被导入成 `UInt32`**，而结构体字段是 `int32_t`，比较前必须
   显式转换。
-- **MenuBarExtra 与 Window 同存时，点菜单栏图标会让 SwiftUI 擅自重建主窗口。**
-  实测确认，且不走 `applicationShouldHandleReopen`（插桩证明该委托从未被调用，
-  SwiftUI 生命周期不转发它），没有干净的委托口子可堵。对策在结果端：窗口每次
-  出现时问 AppModel「这次展示登记过吗」（App 启动与「打开主窗口」按钮是仅有的
-  两个登记点，3 秒时间窗），没登记过的当场 dismiss。见 `MainWindowRoot`。
-- **裸可执行（dev）的初始窗口不会自动出现。** 打包 .app 里 `Window` 场景随
-  LaunchServices 的首次激活自动呈现；`swift build` 裸跑时（macOS 26 实测：
-  启动即 `.prohibited`）SwiftUI 把初始窗口推迟到收到**显式 openWindow** 的
-  时机 —— dev 只能菜单栏「打开主窗口」救回，根因链与插桩证据留档在
-  `TetherKitApp.swift` 顶部与 AGENTS.md 第 7 节第 19 条。随之保留的两处 dev
-  例外：`AppModel.isWindowPresentationExpected()` 的 bundle-id 放行、
-  `TetherKitApplication.init()` 的 `.prohibited → .regular` 自检。
+- **主窗口由 AppKit 直接管理（`MainWindowManager`），不再走 SwiftUI 的 Window
+  场景。** 两个原因：一是 SwiftUI 会在菜单栏模式下「擅自重建」Window 场景、
+  主窗口莫名冒回来（`applicationShouldHandleReopen` 不走，插桩确认没被调用，
+  没有干净的委托口子可堵）—— 自己管窗口之后这条路就没了；二是 macOS 26 的
+  窗口 chrome 由 `LC_BUILD_VERSION` 的 SDK 决定：SwiftPM 链出来的 `sdk 14.0`
+  全机器都是 legacy 三灯（14×16pt、20pt 间距、扁平小点），加
+  `-platform_version macos 14.0.0 26.5.0` 并保持 minos 14.0 即可拿回 stock
+  大灯（两个方面均见 AGENTS.md 第 7 节第 19–21 条）。主窗口因此是
+  `fullSizeContentView` + 透明隐藏标题栏的普通 NSWindow，内容由
+  NSHostingView 承载；App 启动与菜单栏「打开主窗口」都走
+  `MainWindowManager.shared.present(model)`，关闭 = orderOut，回到菜单栏
+  模式（`NSWindowDelegate.windowWillClose` 里退到 accessory 策略）。
+- **dev 裸跑现在照常弹窗。** 窗口由 delegate 在
+  `applicationDidFinishLaunching` 创建并 `makeKeyAndOrderFront`，不再依赖
+  SwiftUI 的实例化时机 —— 「要点菜单栏救一次」已成历史。
+  `TetherKitApplication.init()` 的 `.prohibited → .regular` 自检保留：
+  它管的是未激活进程的正常激活语义。
 - **轮询是自适应的**：会话在跑 / 正在启停 / 窗口开着 → 500 ms；纯后台待机 →
   2 秒。窗口重新打开时立刻补一次刷新，避免第一眼看到陈旧数据。
 
@@ -418,4 +423,4 @@ sudo ./gui/Scripts/uninstall-helper.sh
 | 点「安装特权组件」报「不带安装载荷」 | 跑的是 `swift run` 的裸可执行文件，载荷只在 build-gui.sh 组装的 .app 里；用终端脚本装 |
 | 授权框只有密码、没有指纹 | 这是系统 API 的限制，不是缺陷，见第 4.5 节 |
 | 设备拔掉重插后点「连接」报「会话已经在运行了」 | helper 是旧版（失败态旧会话未被清理），重装 helper |
-| 仅菜单栏模式下双击访达图标没反应 | 已知权衡（见 MainWindowRoot 的说明），从菜单栏面板打开即可 |
+| 双击访达图标没反应 | 已修复：`applicationShouldHandleReopen` 里重新呈现主窗口（AppKit 自管窗口之后才拿得到这个回调） |

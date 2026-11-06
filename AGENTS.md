@@ -580,16 +580,30 @@ TX 就从 4.8 回到了 87 Mbps。
    同一类问题还有一个变种：**`static let` 存的文案只求值一次**，切语言后
    永远不更新。凡是存文案的静态成员一律改成计算属性（`AppModel` 的三条授权
    提示、`NetworkCard.dnsHint` 都踩过）。
-19. **裸可执行的 SwiftUI App：`Window` 场景不会在启动时实例化。** macOS 26
-   实测：`swift build` 产物（无 bundle id）启动时激活策略是 **`.prohibited`**，
-   且 SwiftUI 只在收到**显式 openWindow** 时才创建 Window 场景的窗口 ——
-   提前把策略改成 `.regular`、手动补发 activate 都救不动。症状是「只有菜单栏
-   图标，要点菜单栏面板里的『打开主窗口』才有窗口」。打包 .app 走
-   LaunchServices 的首次激活路径，**不受影响**（dev 专属现象）。排查结论与
-   插桩方式留档在 `TetherKitApp.swift` 顶部注释（2026-11-06）。另：
-   `TetherKitApplication.init()` 里的 `.prohibited → .regular` 自检救不了初始
-   窗口，但让 dev 裸跑在窗口救回后有正常激活语义，保留；`MainWindowRoot` 的
-   dev 放行例外（bundle id 为 nil）同理保留。
+19. **macOS 26 的窗口 chrome 由 `LC_BUILD_VERSION` 的 `sdk` 决定。** 实测：
+   `swift build` 产物被 SwiftPM 链成 `sdk 14.0`（`-target arm64-apple-macos14.0`
+   被折进 LC_BUILD_VERSION），于是 Tahoe 全机器走 **legacy chrome** —— 三灯是
+   14×16pt、20pt 间距的扁平小点；对照：Hand Mirror（minos 14.4 / sdk 26.5）
+   与 Dropover（minos 13.0 / sdk 27.0）都是 28×28px、46px 间距的立体大灯。
+   所有 AppKit 窗口画的都是同一套 `_NSTheme*Widget`，差别只在 SDK 门控。
+   修复：`TetherKitApp` target 链接时加 `-platform_version macos 14.0.0 26.5.0`
+   （gui/Package.swift），**minos 保持 14.0，只有 chrome 受影响**。
+   以后每个发行包都核对：
+   `otool -l <binary> | rg -A4 LC_BUILD_VERSION` —— `sdk` 必须 ≥ 26。
+   主窗口另改为 AppKit 自管 `NSWindow`（MainWindowManager）：启动即确定性呈现，
+   不再依赖 SwiftUI 场景的实例化时机，三灯同为 stock 样式。
+20. **`.prohibited` / dev 裸跑的退场与新链**：主窗口不再由 SwiftUI `Window`
+   场景出，而是由 `@NSApplicationDelegateAdaptor` 的 delegate 在
+   `applicationDidFinishLaunching` 里创建并 `makeKeyAndOrderFront` ——
+   裸跑照常弹窗，「要点菜单栏救一次」已成历史；`isWindowPresentationExpected`
+   一类的把关代码全部删除（窗口何时出现由 MainWindowManager 自管，SwiftUI
+   再无场景可擅自重建）。保留 `TetherKitApplication.init()` 里的
+   `.prohibited → .regular` 自检：它不管窗口显现，管的是未激活进程的
+   正常激活语义。
+21. **SwiftPM 把 `sdk` 钉成 deployment target 是系统症。** 任何不打
+   `-platform_version` 的 SwiftPM 工程在 Tahoe 上都会被当 legacy app；
+   Homebrew 构建同样受影响 —— 若 formula 构建漏带该 flag，用户装出来
+   就是小灯。
 
 ---
 
