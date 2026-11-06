@@ -149,9 +149,9 @@ struct SidebarShell: View {
     // MARK: - Content area
 
     /// Upper bound for page content width. The window is fixed at
-    /// 800pt, so this never binds today (content tops out at roughly
-    /// 550pt); it stays as the documented ceiling for a future wider
-    /// window instead of letting cards stretch edge to edge.
+    /// 800pt (≈595pt of content after the sidebar and hairline), so
+    /// this never binds today; it stays as the documented ceiling for
+    /// a future wider window.
     private static let contentWidthCap: CGFloat = 640
 
     @ViewBuilder

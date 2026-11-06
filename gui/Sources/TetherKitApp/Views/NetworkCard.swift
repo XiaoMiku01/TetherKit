@@ -10,8 +10,8 @@ import TetherKitIPC
 ///   静态模式我们只能尽力而为地补一个键，能不能被系统采纳取决于 IPMonitor。
 ///   与其向用户承诺一个可能不成立的结果，不如把真实状态摆出来。
 ///
-/// This card lives on the "Network" page (NetworkPage) with a full
-/// 640pt of width. The typography rule below is a leftover from the
+/// This card lives on the "Network" page (NetworkPage) with the full
+/// content width to itself. The typography rule below is a leftover from the
 /// two-column era: back then the card's height decided whether the
 /// left column fit on one screen, so input fields and readback values
 /// were laid out in two columns and long explanations all went into

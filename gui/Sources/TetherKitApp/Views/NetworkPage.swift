@@ -5,9 +5,10 @@ import TetherKitIPC
 ///
 /// The card from the old dashboard's left column, moved into its own
 /// page without changing its internals. It used to fit a two-column
-/// form in half a window column; it now gets the full 640pt width, so
-/// the "whole page height budget" constraint is gone and the form and
-/// the readback values can both expand without negotiating.
+/// form in half a window column; it now has the full content width
+/// to itself, so the "whole page height budget" constraint is gone
+/// and the form and the readback values can both expand without
+/// negotiating.
 struct NetworkPage: View {
     @Bindable var model: AppModel
 
