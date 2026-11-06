@@ -5,11 +5,12 @@ import TetherKitIPC
 /// Owns the main window.
 ///
 /// Why not SwiftUI's `Window` scene: it creates the window with its
-/// own compact chrome — small, flat traffic lights (measured: 24px
-/// circles at 20pt spacing, versus the full-size glossy ones every
-/// ordinary window on this machine paints, 28px at 23pt spacing).
-/// Even `hiddenTitleBar` plus a bare unified toolbar never flips
-/// the rendering (tested). The fix is to make the window like every
+/// own compact chrome — small, flat traffic lights (measured: 12pt
+/// circles in 14×16pt frames at 20pt spacing, versus the stock
+/// full-size ones every ordinary window on this machine paints:
+/// 14pt circles in 14×14pt frames at 23pt spacing). Even
+/// `hiddenTitleBar` plus a bare unified toolbar never flips the
+/// rendering (tested). The fix is to make the window like every
 /// other window on the machine: a plain `NSWindow` with
 /// `fullSizeContentView` and a transparent, title-hidden bar hosting
 /// the SwiftUI content via `NSHostingView`. The bar still drags the
@@ -41,7 +42,9 @@ final class MainWindowManager: NSObject {
 
     /// Hides the window — File ▸ Close (⌘W) and the red close button
     /// both go through performClose, so both end in the same
-    /// hide-and-menu-bar-mode path.
+    /// hide-and-menu-bar-mode path. Deliberately targets the main
+    /// window even when the menu-bar panel is key; a no-op when the
+    /// window is already hidden.
     func closeMainWindow() {
         window?.performClose(nil)
     }
@@ -57,6 +60,9 @@ final class MainWindowManager: NSObject {
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
+        // Zoom does nothing on a fixed-size window; disable it
+        // explicitly rather than leave a live-looking gray button.
+        window.standardWindowButton(.zoomButton)?.isEnabled = false
         window.minSize = NSSize(width: Design.Window.width, height: Design.Window.height)
         window.maxSize = window.minSize
         window.contentView = NSHostingView(rootView: MainWindowRoot(model: model))
