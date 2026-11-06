@@ -39,6 +39,13 @@ final class MainWindowManager: NSObject {
         model.windowDidAppear()
     }
 
+    /// Hides the window — File ▸ Close (⌘W) and the red close button
+    /// both go through performClose, so both end in the same
+    /// hide-and-menu-bar-mode path.
+    func closeMainWindow() {
+        window?.performClose(nil)
+    }
+
     private func makeWindow(_ model: AppModel) -> NSWindow {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0,
                                                   width: Design.Window.width,

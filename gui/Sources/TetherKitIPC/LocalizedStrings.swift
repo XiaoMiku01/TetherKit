@@ -141,6 +141,7 @@ public enum L10nKey: String, CaseIterable, Sendable {
 
     // MARK: - 主界面（ContentView.swift）
 
+    case closeWindow
     case menuCheckForUpdates
     case alertOperationFailed
     case confirmUninstallTitle
@@ -477,6 +478,7 @@ extension L10nKey {
 
         // MARK: 主界面
 
+        case .closeWindow: return ("关闭窗口", "Close Window")
         case .menuCheckForUpdates: return ("检查更新…", "Check for Updates…")
         case .alertOperationFailed: return ("操作失败", "Operation failed")
         case .confirmUninstallTitle: return ("卸载特权组件？", "Uninstall the privileged helper?")

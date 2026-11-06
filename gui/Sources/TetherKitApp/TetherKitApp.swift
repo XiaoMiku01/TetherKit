@@ -77,6 +77,12 @@ struct TetherKitApplication: App {
         .commands {
             // 「新建窗口」对单窗口应用没有意义，去掉免得用户点了没反应。
             CommandGroup(replacing: .newItem) {}
+            // ⌘W：没有 Window 场景就没有系统自带的「关闭」，手动补上。
+            // 语义 = 隐藏主窗口、退到菜单栏（与红色关闭按钮一致）。
+            CommandGroup(after: .newItem) {
+                Button(L(.closeWindow)) { MainWindowManager.shared.closeMainWindow() }
+                    .keyboardShortcut("w")
+            }
             // 「检查更新…」放在 App 菜单「关于」下面的惯例位置。
             // 只查不换 —— 原因见 UpdateChecker.swift 的类型注释。
             CommandGroup(after: .appInfo) { AppMenuItems(model: model) }
