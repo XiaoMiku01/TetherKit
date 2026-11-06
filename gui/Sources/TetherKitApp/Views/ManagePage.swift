@@ -12,7 +12,7 @@ struct ManagePage: View {
     @Bindable var model: AppModel
 
     /// Uninstall is destructive (disconnects, removes system files),
-    /// so it asks first. 
+    /// so it asks first.
     @State private var confirmingHelperUninstall = false
 
     /// Only an update that would hit a RUNNING session needs
