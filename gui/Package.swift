@@ -69,6 +69,22 @@ let tetherkitLinkerSettings: [LinkerSetting] = [
     .linkedLibrary("tetherkit"),
 ]
 
+/// Tahoe (macOS 26+) selects the window chrome from the executable's
+/// LC_BUILD_VERSION `sdk` stamp. SwiftPM links with
+/// `-target arm64-apple-macos14.0`, which stamps sdk 14.0 and forces
+/// the legacy chrome (compact, flat traffic lights) on every Tahoe
+/// machine. Xcode-linked apps stamp the SDK in use — Hand Mirror is
+/// minos 14.4 / sdk 26.5 — with the deployment target untouched.
+/// Do the same here; minos stays 14.0 and the sdk stamp gates only
+/// the Tahoe appearance (verified: sdk 14.0 -> legacy lights,
+/// sdk 26.5 -> full-size glossy ones, same minos).
+let tetherkitAppLinkerSettings: [LinkerSetting] = [
+    .unsafeFlags([
+        "-Xlinker", "-platform_version", "-Xlinker", "macos",
+        "-Xlinker", "14.0.0", "-Xlinker", "26.5.0",
+    ]),
+]
+
 let package = Package(
     name: "TetherKitGUI",
     // macOS 14：@Observable 与 ContentUnavailableView 需要它。命令行部分仍然
@@ -98,7 +114,8 @@ let package = Package(
 
         // 用户看到的 SwiftUI App（普通用户身份运行）。
         .executableTarget(name: "TetherKitApp",
-                          dependencies: ["TetherKitCore", "TetherKitIPC"]),
+                          dependencies: ["TetherKitCore", "TetherKitIPC"],
+                          linkerSettings: tetherkitAppLinkerSettings),
 
         // 只测 TetherKitIPC：它是唯一「纯逻辑、不碰硬件也不需要 root」的层。
         // 会话与网卡配置的测试在 C++ 侧（tests/test_capi.cc），不在这里重复。
