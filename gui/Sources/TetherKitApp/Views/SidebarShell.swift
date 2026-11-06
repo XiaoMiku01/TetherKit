@@ -129,7 +129,6 @@ struct SidebarShell: View {
             }
         }
         .focusable()
-        .focused($sidebarFocused)
         .focusEffectDisabled()
         .onKeyPress(.upArrow) {
             stepSelection(forward: false)
@@ -139,11 +138,6 @@ struct SidebarShell: View {
             stepSelection(forward: true)
             return .handled
         }
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(Color.accentColor.opacity(0.75), lineWidth: 2)
-                .opacity(sidebarFocused ? 1 : 0)
-        )
     }
 
     // MARK: - Content area
