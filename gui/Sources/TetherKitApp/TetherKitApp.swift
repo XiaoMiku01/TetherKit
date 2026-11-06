@@ -29,6 +29,17 @@ struct TetherKitApplication: App {
             print(FinderAlias.ensure(for: Bundle.main.bundleURL))
             exit(0)
         }
+        // macOS 26 实测踩坑：**裸可执行**（swift build 的产物，没有 bundle id）
+        // 启动时激活策略是 .prohibited，而 SwiftUI 对「无激活权」的 App 不实例化
+        // Window 场景的窗口 —— 主窗口永远不出现，只能靠菜单栏「打开主窗口」救回
+        // （那个按钮走 openWindow 前先把策略改回 .regular，所以能用）。
+        // 打包的 .app 由 LaunchServices 给 .regular，这里永远不会命中；补一次
+        // 只服务裸可执行的启动自检。插桩证据见 AGENTS.md 第 7 节。
+        // NSApp 这个全局是隐式拆包的可选值，NSApplication 建好之前是 nil，
+        // 这里必须用 NSApplication.shared 显式初始化 AppKit。
+        if NSApplication.shared.activationPolicy() == .prohibited {
+            NSApplication.shared.setActivationPolicy(.regular)
+        }
         // 正常启动：后台顺手校一遍 —— 缺了就补，brew upgrade 换了 Cellar
         // 路径后目标漂移也会被重写。
         let bundleURL = Bundle.main.bundleURL
@@ -191,3 +202,18 @@ func presentMainWindow(_ model: AppModel, _ openWindow: OpenWindowAction) {
     openWindow(id: "main")
     NSApp.activate(ignoringOtherApps: true)
 }
+
+// MARK: - 已查清的启动限制（2026-11-06 插桩定位，结论留档）
+//
+//   * 对象：**裸可执行**（`swift build` / `swift run` 的产物，没有 bundle id）。
+//   * 现象：macOS 26 实测启动时激活策略是 `.prohibited`，SwiftUI 对
+//     「政策未升级」的 App 不实例化 Window 场景的窗口；即便提前把策略改成
+//     `.regular`、甚至手动补发 activate，初始窗口也不出现 —— SwiftUI 只在
+//     收到**显式 openWindow** 时才把 Window 场景实例化。
+//   * 后果：dev 裸跑必须菜单栏 → 「打开主窗口」救一次；打包 .app 走
+//     LaunchServices 的首次激活路径，不受影响（v0.1.5 一路验证过）。
+//   * init() 里的 `.prohibited → .regular` 保留：它救不了初始窗口，但让
+//     裸可执行在救回窗口后具有正常 App 的激活语义（didBecomeActive 等），
+//     对打包版是无操作。插桩细节（11 个 NSStatusBarWindow 的杂音、
+//     窗口清单快照）不必复现；若未来要再查，加回
+//     `@NSApplicationDelegateAdaptor` + didFinishLaunching 打印即可。
