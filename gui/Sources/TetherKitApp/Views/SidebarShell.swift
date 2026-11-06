@@ -33,13 +33,18 @@ struct SidebarShell: View {
     }
 
     private func select(_ page: SidebarPage) {
-        withAnimation(.smooth(duration: 0.15)) { storedPage = page.rawValue }
+        // Deliberately instant. An animated transaction here makes macOS 26
+        // insert the new page with an automatic zoom-style transition: the
+        // content starts ~10% over-scaled and shrinks in over ~0.3s, which
+        // shows up as a "bulge" in the log toolbar and cards on every page
+        // switch. Settings-style sidebars swap pages without animation.
+        storedPage = page.rawValue
     }
 
-    /// Keyboard focus for the sidebar rows; Up/Down arrows cycle the
-    /// pages (the rows are hand-rolled buttons, so nothing does this
-    /// for us).
-    @FocusState private var sidebarFocused: Bool
+    /// Keyboard focus target so Up/Down arrows cycle the pages (the rows
+    /// are hand-rolled buttons, so nothing does this for us). The system
+    /// chrome for this focus is suppressed (see rows): the selected row's
+    /// fill is the visible cursor.
 
     private func stepSelection(forward: Bool) {
         let all = SidebarPage.allCases
