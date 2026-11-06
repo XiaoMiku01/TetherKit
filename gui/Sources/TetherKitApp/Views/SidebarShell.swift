@@ -33,12 +33,30 @@ struct SidebarShell: View {
     }
 
     private func select(_ page: SidebarPage) {
-        // Deliberately instant. An animated transaction here makes macOS 26
-        // insert the new page with an automatic zoom-style transition: the
-        // content starts ~10% over-scaled and shrinks in over ~0.3s, which
-        // shows up as a "bulge" in the log toolbar and cards on every page
-        // switch. Settings-style sidebars swap pages without animation.
-        storedPage = page.rawValue
+        // Deliberately instant, and clamped twice:
+        //
+        //   1. Here, by forcing the transaction for the storedPage write.
+        //      Removing withAnimation was not enough: a real button click
+        //      runs this action inside whatever animated transaction macOS
+        //      26 gives button activations, and an animated transaction at
+        //      the insertion point reads as a "bulge" (the content starts
+        //      ~10% over-scaled and shrinks in over ~0.3s). The burst
+        //      self-capture proved the point: timer-driven swaps through
+        //      this same method swap content in exactly one frame
+        //      (pixel-identical afterwards), while clicks reproduced the
+        //      bulge — the difference is the transaction the click carries.
+        //   2. At the insertion boundaries: content and pageBody attach
+        //      .transition(.identity) so a page's enter/exit is never
+        //      interpolated, whatever the surrounding transaction says.
+        //
+        // Settings-style sidebars swap pages without animation. The clamps
+        // are scoped to this swap; in-page animations (LogCard's
+        // auto-scroll, StatusHeroCard's live pulse) own their transactions
+        // and stay untouched.
+        var instant = Transaction()
+        instant.animation = nil
+        instant.disablesAnimations = true
+        withTransaction(instant) { storedPage = page.rawValue }
     }
 
     /// Keyboard focus target so Up/Down arrows cycle the pages (the rows
@@ -160,8 +178,10 @@ struct SidebarShell: View {
             // grow with the window (see LogPage). Height semantics,
             // including this page's padding, belong to the page.
             LogPage(model: model)
+                .transition(.identity)
         } else {
             scrollablePage
+                .transition(.identity)
         }
     }
 
@@ -206,16 +226,19 @@ struct SidebarShell: View {
 
     @ViewBuilder
     private var pageBody: some View {
+        // Every branch gets .transition(.identity): pages entering or
+        // leaving here must not be interpolated (see select() for why,
+        // and content above for the sibling boundary).
         switch selection {
-        case .connection: ConnectionPage(model: model)
-        case .network: NetworkPage(model: model)
-        case .throughput: ThroughputPage(model: model)
+        case .connection: ConnectionPage(model: model).transition(.identity)
+        case .network: NetworkPage(model: model).transition(.identity)
+        case .throughput: ThroughputPage(model: model).transition(.identity)
         // The log page branches at the content level above (no outer
         // scroll). The switch still needs to be exhaustive; an empty
         // view here exists to satisfy the language, not as a "not done
         // yet" stub.
         case .log: EmptyView()
-        case .manage: ManagePage(model: model)
+        case .manage: ManagePage(model: model).transition(.identity)
         }
     }
 
