@@ -13,7 +13,7 @@ import TetherKitIPC
 ///
 /// The order is fixed on purpose, not alphabetical. Sort key is
 /// "how often you touch it", not a dictionary. Selection is remembered
-/// via `@SceneStorage` by `rawValue`, so RENAMING a case drops the
+/// via `@AppStorage` by `rawValue`, so RENAMING a case drops the
 /// stored selection once, while reordering or adding pages does not.
 /// Think before renaming.
 enum SidebarPage: String, CaseIterable, Identifiable, Hashable {

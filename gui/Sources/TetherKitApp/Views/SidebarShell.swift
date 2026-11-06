@@ -22,9 +22,11 @@ import TetherKitIPC
 struct SidebarShell: View {
     @Bindable var model: AppModel
 
-    /// Last page the user was on (a window-scene value, restored with
-    /// the window). Stores the rawValue.
-    @SceneStorage("tetherkit.sidebar.page") private var storedPage: String = ""
+    /// Last page the user was on, persisted via UserDefaults and
+    /// restored on launch. Stores the rawValue. (The main window is a
+    /// plain AppKit window now, not a SwiftUI scene, so @SceneStorage
+    /// has no scene to write to; @AppStorage is the drop-in.)
+    @AppStorage("tetherkit.sidebar.page") private var storedPage: String = ""
 
     private var selection: SidebarPage {
         SidebarPage(rawValue: storedPage) ?? .connection
