@@ -38,36 +38,39 @@ struct NetworkCard: View {
     var body: some View {
         Card(title: L(.ipModeLabel), systemImage: "network", accessory: AnyView(interfaceBadge)) {
             VStack(alignment: .leading, spacing: Design.Spacing.small) {
-                modePicker
-
-                switch model.networkConfiguration.mode {
-                case .dhcp:
-                    dhcpExplanation
-                case .manual:
-                    manualForm
-                case .none:
-                    EmptyView()
-                }
-
-                defaultRouteToggle
-                actionRow
-
-                if interfaceReady {
-                    Divider()
-                    EffectiveStateView(state: model.networkState,
-                                       interface: model.status.systemInterface)
-                }
-            }
-            .disabled(!interfaceReady)
-            .opacity(interfaceReady ? 1 : 0.55)
-            .overlay(alignment: .center) {
+                // The "connect first" hint sits inline above the form
+                // instead of floating over it; at full width the old
+                // centered capsule covered the DHCP explanation.
                 if !interfaceReady {
-                    Text(L(.connectBeforeConfiguring))
+                    Label(L(.connectBeforeConfiguring), systemImage: "cable.connector")
                         .font(.callout)
                         .foregroundStyle(.secondary)
-                        .padding(Design.Spacing.small)
-                        .background(.regularMaterial, in: Capsule())
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+
+                Group {
+                    modePicker
+
+                    switch model.networkConfiguration.mode {
+                    case .dhcp:
+                        dhcpExplanation
+                    case .manual:
+                        manualForm
+                    case .none:
+                        EmptyView()
+                    }
+
+                    defaultRouteToggle
+                    actionRow
+
+                    if interfaceReady {
+                        Divider()
+                        EffectiveStateView(state: model.networkState,
+                                           interface: model.status.systemInterface)
+                    }
+                }
+                .disabled(!interfaceReady)
+                .opacity(interfaceReady ? 1 : 0.55)
             }
         }
     }

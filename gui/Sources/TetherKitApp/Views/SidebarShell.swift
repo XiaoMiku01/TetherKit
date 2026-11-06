@@ -36,6 +36,18 @@ struct SidebarShell: View {
         withAnimation(.smooth(duration: 0.15)) { storedPage = page.rawValue }
     }
 
+    /// Keyboard focus for the sidebar rows; Up/Down arrows cycle the
+    /// pages (the rows are hand-rolled buttons, so nothing does this
+    /// for us).
+    @FocusState private var sidebarFocused: Bool
+
+    private func stepSelection(forward: Bool) {
+        let all = SidebarPage.allCases
+        guard let index = all.firstIndex(of: selection) else { return }
+        let next = forward ? (index + 1) % all.count : (index + all.count - 1) % all.count
+        select(all[next])
+    }
+
     var body: some View {
         HStack(spacing: 0) {
             sidebar
@@ -116,16 +128,30 @@ struct SidebarShell: View {
                 }
             }
         }
+        .focusable()
+        .focused($sidebarFocused)
+        .focusEffectDisabled()
+        .onKeyPress(.upArrow) {
+            stepSelection(forward: false)
+            return .handled
+        }
+        .onKeyPress(.downArrow) {
+            stepSelection(forward: true)
+            return .handled
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(Color.accentColor.opacity(0.75), lineWidth: 2)
+                .opacity(sidebarFocused ? 1 : 0)
+        )
     }
 
     // MARK: - Content area
 
-    /// Scroll container wrapping the current page body and its heading.
-    ///
-    /// Content has a max width (`contentWidthCap`): however wide the
-    /// window gets, the cards stay in the left region as the reference
-    /// apps do. Unbounded cards put every picker far from its label
-    /// text; wide spacing reads worse, not better.
+    /// Upper bound for page content width. The window is fixed at
+    /// 800pt, so this never binds today (content tops out at roughly
+    /// 550pt); it stays as the documented ceiling for a future wider
+    /// window instead of letting cards stretch edge to edge.
     private static let contentWidthCap: CGFloat = 640
 
     @ViewBuilder
@@ -140,12 +166,32 @@ struct SidebarShell: View {
         }
     }
 
+    /// Heading for the current page. The Throughput page carries the
+    /// LIVE badge in the heading's trailing accessory (the card used
+    /// to render it, which stacked two headings).
+    @ViewBuilder
+    private var pageHeading: some View {
+        switch selection {
+        case .throughput:
+            SidebarPageHeading(title: selection.title) { throughputLiveBadge }
+        default:
+            SidebarPageHeading(title: selection.title)
+        }
+    }
+
+    @ViewBuilder
+    private var throughputLiveBadge: some View {
+        if model.status.runState == .running {
+            StatusBadge(text: L(.throughputLive), color: .green)
+        }
+    }
+
     /// Every page except the log shares this "heading + scrolling body"
     /// container.
     private var scrollablePage: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Design.Spacing.large) {
-                SidebarPageHeading(title: selection.title)
+                pageHeading
                 pageBody
             }
             .frame(maxWidth: Self.contentWidthCap, alignment: .leading)
@@ -236,6 +282,7 @@ private struct SidebarRow: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovering = $0 }
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private var icon: some View {
@@ -244,6 +291,7 @@ private struct SidebarRow: View {
             .foregroundStyle(.white)
             .frame(width: 22, height: 22)
             .background(iconTint, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .accessibilityHidden(true)
     }
 
     private var rowBackground: Color {

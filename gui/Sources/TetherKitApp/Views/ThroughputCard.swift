@@ -6,23 +6,16 @@ import TetherKitIPC
 ///
 /// 图表刻意只画**速率**而不画累计量：累计曲线永远单调上升，看不出任何东西；
 /// 而速率能一眼看出卡顿、抖动和被限速。累计量放在下面的指标格里，需要时能读到。
+///
+/// The card carries no title row: it is the body of the "Throughput"
+/// page and the page header already says it (with the LIVE badge).
 struct ThroughputCard: View {
     @Bindable var model: AppModel
-
-    /// Page-mode switch. The throughput card is now the body of the
-    /// "Throughput" page; the page header already reads "Throughput",
-    /// so the card's self-introducing title row must be able to turn
-    /// off instead of saying it twice at the same level.
-    /// The LIVE badge moves with the title row: in page mode the page
-    /// header renders it (see ThroughputPage).
-    var showsTitleRow: Bool = true
 
     private var hasData: Bool { !model.throughputHistory.isEmpty }
 
     var body: some View {
-        Card(title: showsTitleRow ? L(.throughputSectionTitle) : nil,
-             systemImage: showsTitleRow ? "chart.line.uptrend.xyaxis" : nil,
-             accessory: showsTitleRow ? AnyView(liveBadge) : nil) {
+        Card {
             VStack(alignment: .leading, spacing: Design.Spacing.medium) {
                 rateRow
                 chart
@@ -35,20 +28,10 @@ struct ThroughputCard: View {
         }
     }
 
-    @ViewBuilder
-    private var liveBadge: some View {
-        if model.status.runState == .running {
-            StatusBadge(text: L(.throughputLive), color: .green)
-        }
-    }
-
-    // The four rate tiles form a 2x2 grid, not one row: in the
-    // two-column era this card had half a window column, and one row
-    // of four would have squeezed captions like "Downstream (device
-    // -> this Mac)" into truncation. The card now gets the Throughput
-    // page's full 640pt and a row would fit; but this redesign
-    // changed only the layout around the cards, not inside them.
-    // Keeping 2x2 for the next visual pass (see ThroughputPage).
+    // The four rate tiles form a 2x2 grid, not one row. In the
+    // two-column era this card had half a window column; the Throughput
+    // page is now its own page with the full content width, so a row
+    // would fit. Kept as 2x2 for the next visual pass.
     private var rateRow: some View {
         Grid(alignment: .leading,
              horizontalSpacing: Design.Spacing.medium,
