@@ -342,6 +342,54 @@ helper 缺失或版本不匹配时，界面给一个「安装 / 更新特权组�
 - 查到新版后的落地由既有机制接力：`brew upgrade` 换掉 App，重启后
   `protocolRevision` 不匹配触发「更新特权组件」一键重装（4.6 / 4.9 节）。
 
+### 4.11 页面切换为何零动画（macOS 26 插锁链）
+
+侧栏换页要求逐像素不动。此前 macOS 26 上点击换页时新页短暂放大约 8-10% 再缩回，
+且**只有点击触发**（定时器驱动同一状态完全纯净）。两层根因（AGENTS.md 第 7 节
+第 22、23 条）叠加，单堵任何一层都只让跳变变快、不能根除 —— 三重钳制，缺一不可：
+
+1. **`SidebarRow`：`InstantButtonStyle`（`PrimitiveButtonStyle`）** —— 系统默认
+   样式会为按下 / 标签状态创建**按钮激活上下文**（带动画的事务）；它用
+   `.transaction { animation = nil }` + `.contentShape(Rectangle)` +
+   `.simultaneousGesture(TapGesture().onEnded { trigger() })` 彻底不创建
+   （对 configuration 调 `trigger()` 不是 `action()`）。
+2. **`SidebarShell.select`：状态写入跳出激活拍** —— `DispatchQueue.main.async`
+   到下一拍写入，写处再挂 instant 事务（`animation = nil` +
+   `disablesAnimations = true`）兜底。
+3. **`MainWindowManager`：掐断 resize 事件源** —— macOS 26 把「内容尺寸变化」
+   与「窗口 frame 动画」同步（WWDC25-256、release notes 61158194）；
+   `NSHostingView` 默认 `sizingOptions` 会把每页固有尺寸推进窗口（页高不同 →
+   每次换页一次 resize）。`hosting.sizingOptions = []` 在**附加 contentView
+   之前**设置；min/max 钉成固定尺寸。
+
+**为什么单独堵一层不够**：transition 只在事务带动画时插值，激活上下文永远带
+动画；`disablesAnimations` 只拦新的隐式 `.animation` 写入（objc.io 的
+Transaction / transitions 两篇）—— 唯一「完全不插值」的环境是带 nil 动画的
+下一拍事务，即第 2 条。
+
+**不变式**：改侧栏选中的新代码路径**必须走 `select()`**（保持跳出激活拍），
+不许在激活事务内直接写 `storedPage` —— 每多一个换页入口，这条都得跟着保持。
+窗口侧：delegate 的 `windowDidBecomeMain` / `windowDidResize` 幂等重新钉
+min/max —— 实测 macOS 26 窗口展示后不久会把 min/max **重置为未设**，伴随一次
++32pt 的 chrome settle（调用栈 `_setFrameCommon:display:fromServer:`）；
+`styleMask` 从不含 `.resizable`（min/max 只防程序化改动），幂等写法同时防
+`windowDidResize` 自递归。
+
+**验证（无头实验室，不看肉眼）**：`NSEvent` mouseDown/mouseUp +
+`NSWindow.sendEvent` 合成点击走真实响应链（无需 Accessibility / 录屏权限）；
+对自己进程可用 `AXUIElement` 读按钮几何自检命中（自家进程无 TCC 弹窗），命中
+12/12；每次点击抓 20 张间隔 35ms 的上部内容带帧 = 240 帧，YAVG 配对分析 ——
+每次换页恰好**一个单帧跳变**、无衰减序列（若仍有 0.2-0.3s 的 settle，会出现
+5-8 个连续中幅配对），点击路径零 `didResize`。⚠️ CA 动画键探针全程
+`animLayers=0`：**SwiftUI 插值对 CALayer 不可见，只有位图捕获能看到**，别拿
+「有没有 CA 动画」当判据。AX 攻略：常量导入为 `String`（传给 AX API 要
+`as CFString`）；`CFArray` 元素用 `CFArrayGetValueAtIndex` + `unsafeBitCast`
+取，配 `AXValueGetTypeID()` 检查。
+
+无碍项：`LogCard` 自动滚动（`withAnimation(.easeOut 0.15)`）与 `StatusHeroCard`
+的 repeatForever 呼吸动画都拥有自己的事务，`select()` 的钳制不影响它们
+（实测通过）。
+
 ---
 
 ## 5. 已实现 / 未实现

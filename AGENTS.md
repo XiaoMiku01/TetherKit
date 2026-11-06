@@ -605,6 +605,30 @@ TX 就从 4.8 回到了 87 Mbps。
    `-platform_version` 的 SwiftPM 工程在 Tahoe 上都会被当 legacy app；
    Homebrew 构建同样受影响 —— 若 formula 构建漏带该 flag，用户装出来
    就是小灯。
+22. **macOS 26 把 Button 动作的视图更新包进带动画的事务（按钮激活上下文）。**
+   点击侧栏换页时新页短暂放大约 8-10% 再缩回，仅点击触发；定时器驱动同一状态
+   则逐像素纯净。`Transaction.disablesAnimations` 只阻止新的隐式 `.animation`
+   写入事务、**禁不掉 transition** —— transition 只在事务带动画时插值
+   （objc.io 的 Transaction / transitions 两篇）—— 故激活事务包住的页面写入
+   永远被插值，`.transition(.identity)` / instant 事务只让跳变变快，未根除。
+   修两处（源码注释「三重钳制」）：`SidebarRow` 换 `InstantButtonStyle`
+   （`PrimitiveButtonStyle`）：`.transaction { animation = nil }` +
+   `.contentShape(Rectangle)` + `.simultaneousGesture(TapGesture().onEnded
+   { trigger() })`，彻底不创建激活上下文（对 configuration 调 `trigger()`
+   不是 `action()`）；`SidebarShell.select` 把状态写入跳到下一 runloop 拍
+   （`DispatchQueue.main.async`）并挂 instant 事务兜底。
+   详见 docs/GUI-ARCHITECTURE.md「页面切换为何零动画」。
+
+23. **macOS 26 把「内容尺寸变化」与「窗口 frame 动画」同步**（WWDC25-256、
+   release notes 61158194），而 `NSHostingView` 默认 `sizingOptions` 会把每页
+   固有尺寸推进窗口 —— 页高不同，每次换页就是一次窗口 resize 事件源。
+   修法（`MainWindowManager`）：`hosting.sizingOptions = []` 必须在**附加
+   contentView 之前**设置；`minSize` / `maxSize` 钉成固定尺寸。
+   ⚠️ 实测 macOS 26 在窗口展示后不久会把 min/max **重置为未设**，伴随一次
+   +32pt 的 chrome settle（调用栈 `_setFrameCommon:display:fromServer:`）——
+   所以 delegate 的 `windowDidBecomeMain` / `windowDidResize` 里幂等重新钉；
+   幂等写法同时防自递归。窗口 `styleMask` 从不含 `.resizable`，min/max
+   只用于防程序化改动。
 
 ---
 
