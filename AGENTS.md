@@ -583,8 +583,9 @@ TX 就从 4.8 回到了 87 Mbps。
 19. **macOS 26 的窗口 chrome 由 `LC_BUILD_VERSION` 的 `sdk` 决定。** 实测：
    `swift build` 产物被 SwiftPM 链成 `sdk 14.0`（`-target arm64-apple-macos14.0`
    被折进 LC_BUILD_VERSION），于是 Tahoe 全机器走 **legacy chrome** —— 三灯是
-   14×16pt、20pt 间距的扁平小点；对照：Hand Mirror（minos 14.4 / sdk 26.5）
-   与 Dropover（minos 13.0 / sdk 27.0）都是 28×28px、46px 间距的立体大灯。
+   14×16pt 按钮框、20pt 间距、内只画约 12pt 圆；对照：Hand Mirror（minos 14.4 /
+   sdk 26.5）与 Dropover（minos 13.0 / sdk 27.0）都是 14×14pt 按钮框、23pt 间距、
+   满格画圆。
    所有 AppKit 窗口画的都是同一套 `_NSTheme*Widget`，差别只在 SDK 门控。
    修复：`TetherKitApp` target 链接时加 `-platform_version macos 14.0.0 26.5.0`
    （gui/Package.swift），**minos 保持 14.0，只有 chrome 受影响**。

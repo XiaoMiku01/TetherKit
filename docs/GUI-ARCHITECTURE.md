@@ -231,7 +231,7 @@ helper 根本没有它 —— 那就又回到了「对不上还查不出来」�
   主窗口莫名冒回来（`applicationShouldHandleReopen` 不走，插桩确认没被调用，
   没有干净的委托口子可堵）—— 自己管窗口之后这条路就没了；二是 macOS 26 的
   窗口 chrome 由 `LC_BUILD_VERSION` 的 SDK 决定：SwiftPM 链出来的 `sdk 14.0`
-  全机器都是 legacy 三灯（14×16pt、20pt 间距、扁平小点），加
+  全机器都是 legacy 三灯（14×16pt 按钮框、20pt 间距、内只画约 12pt 圆），加
   `-platform_version macos 14.0.0 26.5.0` 并保持 minos 14.0 即可拿回 stock
   大灯（两个方面均见 AGENTS.md 第 7 节第 19–21 条）。主窗口因此是
   `fullSizeContentView` + 透明隐藏标题栏的普通 NSWindow，内容由
