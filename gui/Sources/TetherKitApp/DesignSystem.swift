@@ -27,21 +27,15 @@ enum Design {
         static let control: CGFloat = 8
     }
 
-    /// 窗口尺寸。
+    /// Fixed window size.
     ///
-    /// Window sizes.
-    ///
-    /// After the sidebar redesign, the "no whole-page scrolling" goal
-    /// became a per-page property: the Connection page fits one screen,
-    /// and the Network page scrolls only with the static form expanded.
-    /// The window can therefore shrink from the two-column era's
-    /// 990x780 to the reference settings window's compact footprint:
-    /// width = sidebar 204 + content cap 640 + margins.
+    /// Settings-style, non-resizable window at a compact footprint:
+    /// width = sidebar 204 + content cap 640 + margins. The Connection
+    /// page fits one screen and the Network page scrolls only with the
+    /// static form expanded, so user resizing buys nothing.
     enum Window {
-        static let minWidth: CGFloat = 720
-        static let minHeight: CGFloat = 500
-        static let defaultWidth: CGFloat = 800
-        static let defaultHeight: CGFloat = 560
+        static let width: CGFloat = 800
+        static let height: CGFloat = 560
     }
 
     // MARK: - 状态色

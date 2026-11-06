@@ -161,12 +161,8 @@ final class AppModel {
     /// 上次枚举设备的时刻。用单调时钟，避免系统时间被调整时算出负的间隔。
     private var lastDeviceRefresh: ContinuousClock.Instant?
 
-    /// 主窗口当前是否可见。只影响轮询节奏；程序坞图标策略在视图层处理。
+    /// 主窗口当前是否可见。只影响轮询节奏；程序坞图标策略由 MainWindowManager 处理。
     private var isWindowVisible = true
-
-    /// 最近一次「明确要求显示主窗口」的时刻。初始值 = 现在，因为 App 启动本身
-    /// 就是一次合法的窗口展示。
-    private var windowPresentationRequestedAt = ContinuousClock.now
 
     /// 缓存的授权令牌。为 nil 表示下次特权操作需要弹框。
     ///
@@ -272,37 +268,6 @@ final class AppModel {
     /// 主窗口关闭。App 转入后台模式，轮询继续（菜单栏靠它喂数据）但会放慢。
     func windowDidDisappear() {
         isWindowVisible = false
-    }
-
-    /// 登记「接下来这次主窗口展示是我们主动要求的」。
-    ///
-    /// App 启动时（初始化默认值）与「打开主窗口」按钮各登记一次。
-    func expectWindowPresentation() {
-        windowPresentationRequestedAt = ContinuousClock.now
-    }
-
-    /// 这次窗口出现是不是我们自己要求的。
-    ///
-    /// SwiftUI 会在「无窗口的 App 被激活」时（点菜单栏图标就会触发）擅自重建
-    /// Window 场景，那种复活必须当场关掉。用时间窗而不是一次性标志来判定：
-    /// 「3 秒内登记过」就算数 —— 一次性标志在「窗口已开着时再点打开」这类
-    /// 路径上会残留，时间窗天然自愈。
-    ///
-    /// Exception: bare dev binaries (swift build / swift run output,
-    /// no bundle id). SwiftUI defers their initial window until an
-    /// explicit openWindow arrives (behavior and findings documented at
-    /// the top of TetherKitApp.swift), so when the window appears is
-    /// not the time window's business; in dev the guard would only
-    /// misfire. Authorization semantics untouched: packaged .app files
-    /// have a bundle id and still go through the time window.
-    ///
-    /// Second exception: self-capture mode (-SelfCapture, see
-    /// UiSelfCapture). A script presents the window; allowed for the
-    /// same reason.
-    func isWindowPresentationExpected() -> Bool {
-        if Bundle.main.bundleIdentifier == nil { return true }
-        if CommandLine.arguments.contains("-SelfCapture") { return true }
-        return ContinuousClock.now - windowPresentationRequestedAt < .seconds(3)
     }
 
     /// 当前该用的轮询间隔。

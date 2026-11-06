@@ -5,9 +5,10 @@ import SwiftUI
 //
 // Background: screenshotting the app window requires the macOS Screen
 // Recording permission, which is unavailable in headless / CI / agent
-// sessions. An app capturing ITS OWN window is not gated by that
-// permission. Drawing the window by its window number into a bitmap
-// (CGWindowListCreateImage with "own window" selection) does the job.
+// sessions. An app capturing ITS OWN window needs no such permission:
+// the window's frame view rasterizes itself into a bitmap (the title
+// bar with the traffic lights included). CGWindowListCreateImage is
+// gone in macOS 15+, so the frame view is the capture path.
 //
 // Invocation (debug launch arguments):
 //
@@ -45,25 +46,13 @@ enum UiSelfCapture {
     }
 
     private static func capture(_ window: NSWindow, to path: String) {
-        // First choice: a full-window bitmap by window number with
-        // `boundsIgnoreFraming`, which trims the shadow margin outside
-        // the rounded corners and makes pixel-level comparison possible.
-        let id = CGWindowID(window.windowNumber)
-        if let cg = CGWindowListCreateImage(.null, .optionIncludingWindow, id,
-                                            [.boundsIgnoreFraming, .bestResolution]) {
-            let rep = NSBitmapImageRep(cgImage: cg)
-            if let data = rep.representation(using: .png, properties: [:]) {
-                try? data.write(to: URL(fileURLWithPath: path))
-                return
-            }
-        }
-        // Fallback: cached display render of the content view tree.
-        // SwiftUI hosting views support this; blur materials end up as
-        // an approximation of the base color, which is enough to judge
-        // layout.
-        guard let view = window.contentView,
-              let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
-        view.cacheDisplay(in: view.bounds, to: rep)
+        // Rasterize the window's frame view hierarchy, which includes
+        // the title bar and the traffic lights — unlike the old
+        // CGWindowListCreateImage path, this needs no screen
+        // recording permission and works on macOS 15+.
+        guard let frame = window.contentView?.superview,
+              let rep = frame.bitmapImageRepForCachingDisplay(in: frame.bounds) else { return }
+        frame.cacheDisplay(in: frame.bounds, to: rep)
         if let data = rep.representation(using: .png, properties: [:]) {
             try? data.write(to: URL(fileURLWithPath: path))
         }

@@ -31,7 +31,6 @@ struct MenuBarLabel: View {
 /// （打开主窗口、退出）。配置、图表、日志一律留在主窗口 —— 面板不是第二个界面。
 struct MenuBarPanel: View {
     var model: AppModel
-    @Environment(\.openWindow) private var openWindow
     @Environment(\.dismiss) private var dismiss
 
     private var status: SessionStatus { model.status }
@@ -114,7 +113,7 @@ struct MenuBarPanel: View {
             HStack {
                 Button(L(.openMainWindow)) {
                     dismiss()
-                    presentMainWindow(model, openWindow)
+                    MainWindowManager.shared.present(model)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
