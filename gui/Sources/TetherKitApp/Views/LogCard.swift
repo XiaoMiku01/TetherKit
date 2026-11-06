@@ -1,8 +1,15 @@
 import SwiftUI
 import TetherKitIPC
 
-/// 日志面板。常驻右栏底部，把两栏布局剩下的高度全部吃掉 —— 窗口越大看到的
-/// 越多，而不是折叠起来等用户展开（旧版折叠是单列布局塞不下的妥协）。
+/// 日志面板。
+///
+/// 布局这支笔有两档：
+///
+///   * 旧 Dashboard 时代它常驻右栏底部，吃掉两栏剩下的高度；（弹性层钉死
+///     `idealHeight` 的原因见 `logList` —— 外层兜底 ScrollView 用理想尺寸
+///     测内容，而内嵌 ScrollView 的理想高度 = 全部日志展开的高度。）
+///   * 侧边栏改版后它独占一页（`fillsAvailableHeight`）：不再有外层滚动，
+///     列表随窗口一起长高，`minHeight` 只作为极端窗口下的下限保底。
 ///
 /// 出问题时它是唯一有用的东西，所以做了三件事：可按级别过滤、自动滚到底、
 /// 一键复制全部（用户报 issue 时能直接贴过来）。
@@ -10,11 +17,21 @@ struct LogCard: View {
     @Bindable var model: AppModel
     @State private var autoScroll = true
 
+    /// 独占整页时置 true：列表撑满页面剩余高度。
+    /// 为 false 时维持旧右栏底部形态（钉死的 90pt 弹性层）。
+    var fillsAvailableHeight: Bool = false
+
     var body: some View {
         Card(title: L(.logSectionTitle), systemImage: "text.alignleft") {
             VStack(alignment: .leading, spacing: Design.Spacing.small) {
                 toolbar
-                logList
+                // 高度两档的分岔点。卡片圈住的这一层是 flex 的吸收层：
+                // 页面化时随窗口长高；旧两栏形态下钉死理想高度（原因见 logList）。
+                if fillsAvailableHeight {
+                    logList.frame(minHeight: 288, maxHeight: .infinity)
+                } else {
+                    logList.frame(minHeight: 90, idealHeight: 90, maxHeight: .infinity)
+                }
                 if model.droppedLogCount > 0 {
                     Label(L(.logDroppedNotice, Int(model.droppedLogCount)),
                           systemImage: "exclamationmark.triangle")
@@ -65,33 +82,29 @@ struct LogCard: View {
 
     private var logList: some View {
         ScrollViewReader { proxy in
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 2) {
-                    ForEach(model.filteredLogs) { entry in
-                        LogRow(entry: entry)
-                            .id(entry.id)
-                    }
-                }
-                .padding(Design.Spacing.small)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            // 高度弹性：吃掉右栏剩余空间。最小值保证极端情况下（窗口压到最小、
-            // 上面的卡都在最高状态）仍能看到几行，而不是被挤成一条缝。
-            // 90 ≈ 四行 —— 整页的预算是「最小窗口（内容高 700）也放得下」，
-            // 左栏加了特权组件管理行之后，这里是唯一合理的伸缩吸收层。
-            //
-            // idealHeight 必须钉死：整页外面有一层兜底 ScrollView，它测量内容
-            // 用的是理想尺寸，而内嵌 ScrollView 的理想高度 = 全部日志展开的高度
-            // —— 不钉住的话日志一多整页就被撑开，滚动又回来了。
-            .frame(minHeight: 90, idealHeight: 90, maxHeight: .infinity)
-            .background(.quaternary.opacity(0.35),
-                        in: RoundedRectangle(cornerRadius: Design.Radius.control))
+            listBody
+                .background(.quaternary.opacity(0.35),
+                            in: RoundedRectangle(cornerRadius: Design.Radius.control))
             .onChange(of: model.filteredLogs.last?.id) { _, newValue in
                 guard autoScroll, let newValue else { return }
                 withAnimation(.easeOut(duration: 0.15)) {
                     proxy.scrollTo(newValue, anchor: .bottom)
                 }
             }
+        }
+    }
+
+    /// 列表本体：不带高度语义（由调用点的两档 frame 决定）。
+    private var listBody: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 2) {
+                ForEach(model.filteredLogs) { entry in
+                    LogRow(entry: entry)
+                        .id(entry.id)
+                }
+            }
+            .padding(Design.Spacing.small)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
