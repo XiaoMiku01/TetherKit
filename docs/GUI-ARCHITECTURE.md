@@ -66,7 +66,7 @@ gui/
 │   │                                  会话状态取色、持久化选择解析）—— 独立
 │   │                                  library 是为了可单测（可执行 target 不能
 │   │                                  被 @testable import）
-│   └── TetherKitApp/                  SwiftUI 界面（含窗基座与各页面视图）
+│   └── TetherKitApp/                  SwiftUI 界面（含主窗口管理与各页面视图）
 ├── Tests/TetherKitIPCTests/           授权凭据生命周期 + 文案表占位符一致性
 ├── Tests/TetherKitUIModelTests/       页面 tint 语义 + 持久化选择解析
 ├── Resources/                         Info.plist、LaunchDaemon plist
@@ -245,7 +245,7 @@ helper 根本没有它 —— 那就又回到了「对不上还查不出来」�
   模式（`NSWindowDelegate.windowWillClose` 里退到 accessory 策略）。
 - **dev 裸跑现在照常弹窗。** 窗口由 delegate 在
   `applicationDidFinishLaunching` 创建并 `makeKeyAndOrderFront`，不再依赖
-  SwiftUI 的实例化时机 —— 「要点菜单栏救一次」已成历史。
+  SwiftUI 的实例化时机，也不需要菜单栏手动救回。
   `TetherKitApplication.init()` 的 `.prohibited → .regular` 自检保留：
   它管的是未激活进程的正常激活语义。
 - **轮询是自适应的**：会话在跑 / 正在启停 / 窗口开着 → 500 ms；纯后台待机 →
@@ -347,7 +347,7 @@ helper 缺失或版本不匹配时，界面给一个「安装 / 更新特权组�
 - 查到新版后的落地由既有机制接力：`brew upgrade` 换掉 App，重启后
   `protocolRevision` 不匹配触发「更新特权组件」一键重装（4.6 / 4.9 节）。
 
-### 4.11 页面切换为何零动画（macOS 26 插锁链）
+### 4.11 页面切换为何零动画（macOS 26 的插值链）
 
 侧栏换页要求逐像素不动。此前 macOS 26 上点击换页时新页短暂放大约 8-10% 再缩回，
 且**只有点击触发**（定时器驱动同一状态完全纯净）。两层根因（AGENTS.md 第 7 节
@@ -380,14 +380,14 @@ min/max —— 实测 macOS 26 窗口展示后不久会把 min/max **重置为�
 `styleMask` 从不含 `.resizable`（min/max 只防程序化改动），幂等写法同时防
 `windowDidResize` 自递归。
 
-**验证（无头实验室，不看肉眼）**：`NSEvent` mouseDown/mouseUp +
+**验证（无头，不靠肉眼）**：`NSEvent` mouseDown/mouseUp +
 `NSWindow.sendEvent` 合成点击走真实响应链（无需 Accessibility / 录屏权限）；
 对自己进程可用 `AXUIElement` 读按钮几何自检命中（自家进程无 TCC 弹窗），命中
 12/12；每次点击抓 20 张间隔 35ms 的上部内容带帧 = 240 帧，YAVG 配对分析 ——
 每次换页恰好**一个单帧跳变**、无衰减序列（若仍有 0.2-0.3s 的 settle，会出现
 5-8 个连续中幅配对），点击路径零 `didResize`。⚠️ CA 动画键探针全程
 `animLayers=0`：**SwiftUI 插值对 CALayer 不可见，只有位图捕获能看到**，别拿
-「有没有 CA 动画」当判据。AX 攻略：常量导入为 `String`（传给 AX API 要
+「有没有 CA 动画」当判据。AX 注意点：常量导入为 `String`（传给 AX API 要
 `as CFString`）；`CFArray` 元素用 `CFArrayGetValueAtIndex` + `unsafeBitCast`
 取，配 `AXValueGetTypeID()` 检查。
 

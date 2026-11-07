@@ -2,14 +2,8 @@ import SwiftUI
 import TetherKitIPC
 
 /// The "Manage" page: privileged helper status and maintenance actions.
-///
-/// All of it used to be a caption footer squeezed at the bottom of the
-/// old layout's left column. As a page it finally has room to say what
-/// it maintains. Logic and `AppModel` interaction are unchanged:
-/// installs/updates go through `installHelper()`, and the confirmation
-/// rules still hold (updating while a session runs asks first).
 struct ManagePage: View {
-    @Bindable var model: AppModel
+    var model: AppModel
 
     /// Uninstall is destructive (disconnects, removes system files),
     /// so it asks first.
@@ -71,8 +65,8 @@ struct ManagePage: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.8)
                     Spacer(minLength: Design.Spacing.small)
-                    // While busy, swap the label to "installing instead
-                    // of just graying out the button: after the
+                    // While busy, swap the label to "Installing…"
+                    // instead of just graying out the button: after the
                     // authorization dialog closes, the wait is several
                     // seconds (bootout, copy, bootstrap, liveness probe).
                     // A gray button looks like a tap that did nothing.

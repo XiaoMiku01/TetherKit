@@ -201,7 +201,6 @@ public enum L10nKey: String, CaseIterable, Sendable {
 
     // MARK: - 日志卡（LogCard.swift）
 
-    case logSectionTitle
     case logDroppedNotice
     case logLevelLabel
     case logLevelAll
@@ -268,7 +267,6 @@ public enum L10nKey: String, CaseIterable, Sendable {
 
     // MARK: - 吞吐卡（ThroughputCard.swift）
 
-    case throughputSectionTitle
     case throughputLive
     case throughputDownstream
     case throughputUpstream
@@ -616,7 +614,6 @@ extension L10nKey {
 
         // MARK: 日志卡
 
-        case .logSectionTitle: return ("运行日志", "Log")
         case .logDroppedNotice:
             return ("有 %ld 条日志因缓冲写满被丢弃", "%ld log lines were dropped because the buffer filled up")
         case .logLevelLabel: return ("级别", "Level")
@@ -713,7 +710,6 @@ extension L10nKey {
 
         // MARK: 吞吐卡
 
-        case .throughputSectionTitle: return ("吞吐", "Throughput")
         case .throughputLive: return ("实时", "Live")
         case .throughputDownstream: return ("下行（设备 → 本机）", "Down (device -> Mac)")
         case .throughputUpstream: return ("上行（本机 → 设备）", "Up (Mac -> device)")

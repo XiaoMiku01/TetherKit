@@ -7,26 +7,23 @@ import TetherKitUIModel
 /// Styling follows the reference UI set (settings-style windows like
 /// Hand Mirror / Dropover): a left column of "colored tile icon + page
 /// name" entries, and headered scrolling content on the right. The
-/// title bar is hidden (`.windowStyle(.hiddenTitleBar)`), so the three
-/// traffic lights float above the sidebar. The sidebar's top inset
-/// (`trafficLightInset`) keeps clear of them.
+/// title bar is transparent with the title hidden (`MainWindowManager`
+/// creates the window that way), so the three traffic lights float
+/// above the sidebar. The sidebar's top inset (`trafficLightInset`)
+/// keeps clear of them.
 ///
 /// Why a hand-rolled sidebar instead of NavigationSplitView:
 ///
-///   The old ContentView layout skipped a sidebar on purpose ("this app
-///   does one thing"). With page topics that argument is gone, but
 ///   NavigationSplitView demands collapsibility and the system's
 ///   selection styling, and cannot produce the fixed-width,
 ///   colored-tile look of the reference UIs. This app does not need
 ///   collapsing (5 pages, all shown). Handling width, selected and
 ///   hover states by hand costs little and stays in control.
 struct SidebarShell: View {
-    @Bindable var model: AppModel
+    var model: AppModel
 
-    /// Last page the user was on, persisted via UserDefaults and
-    /// restored on launch. Stores the rawValue. (The main window is a
-    /// plain AppKit window now, not a SwiftUI scene, so @SceneStorage
-    /// has no scene to write to; @AppStorage is the drop-in.)
+    /// Persisted selection, restored on launch. `@AppStorage` because
+    /// the AppKit-owned window has no scene for `@SceneStorage`.
     @AppStorage("tetherkit.sidebar.page") private var storedPage: String = ""
 
     private var selection: SidebarPage {
@@ -45,7 +42,7 @@ struct SidebarShell: View {
         //      path.
         //   2. The write itself carries an instant transaction
         //      (`animation = nil`, `disablesAnimations = true`) so any
-        //      caller that skips the crawl hop still swaps clean.
+        //      caller that skips the runloop hop still swaps clean.
         //   3. content/pageBody attach .transition(.identity) so a page's
         //      enter/exit is never interpolated, whatever drives it.
         //
@@ -59,11 +56,6 @@ struct SidebarShell: View {
             withTransaction(instant) { self.storedPage = page.rawValue }
         }
     }
-
-    /// Keyboard focus target so Up/Down arrows cycle the pages (the rows
-    /// are hand-rolled buttons, so nothing does this for us). The system
-    /// chrome for this focus is suppressed (see rows): the selected row's
-    /// fill is the visible cursor.
 
     private func stepSelection(forward: Bool) {
         let all = SidebarPage.allCases
@@ -118,10 +110,8 @@ struct SidebarShell: View {
 
             Spacer(minLength: 0)
 
-            // App identity row at the bottom (matching the reference
-            // apps: icon + name + version, quiet, not interactive).
-            // A bare `swift run` binary has no version (half a hidden
-            // line is fine) and no icon (see brandIcon).
+            // A bare `swift run` binary has no version; the row then
+            // renders just the name, which is fine.
             HStack(alignment: .center, spacing: Design.Spacing.small) {
                 if let icon = Self.brandIcon {
                     Image(nsImage: icon)
@@ -145,10 +135,15 @@ struct SidebarShell: View {
         .frame(width: Self.sidebarWidth)
         .frame(maxHeight: .infinity)
         .background(.thinMaterial, ignoresSafeAreaEdges: .all)
-        .animation(.smooth(duration: 0.25), value: model.status.runState)
     }
 
     /// The page rows.
+    ///
+    /// The container is focusable so Up/Down arrows cycle pages
+    /// (`stepSelection`; the rows are hand-rolled buttons, so nothing
+    /// does this for us). The system's focus chrome is suppressed
+    /// (`.focusEffectDisabled()`), the selected row's fill is the
+    /// visible cursor.
     ///
     /// Selected state is a rounded gray fill. Uses `primary` at low
     /// opacity instead of `.quaternary` because quaternary is nearly
@@ -194,9 +189,8 @@ struct SidebarShell: View {
         }
     }
 
-    /// Heading for the current page. The Throughput page carries the
-    /// LIVE badge in the heading's trailing accessory (the card used
-    /// to render it, which stacked two headings).
+    /// Heading for the current page. Throughput carries the LIVE badge
+    /// in the trailing accessory (the card no longer renders one).
     @ViewBuilder
     private var pageHeading: some View {
         switch selection {
@@ -228,8 +222,7 @@ struct SidebarShell: View {
             .padding(.bottom, Design.Spacing.large)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        // Same philosophy as the old layout: no scrolling or bounce
-        // when the content fits.
+        // No scrolling or bounce when the content fits.
         .scrollBounceBehavior(.basedOnSize)
     }
 
@@ -240,12 +233,10 @@ struct SidebarShell: View {
         // and content above for the sibling boundary).
         switch selection {
         case .connection: ConnectionPage(model: model).transition(.identity)
-        case .network: NetworkPage(model: model).transition(.identity)
-        case .throughput: ThroughputPage(model: model).transition(.identity)
+        case .network: NetworkCard(model: model).transition(.identity)
+        case .throughput: ThroughputCard(model: model).transition(.identity)
         // The log page branches at the content level above (no outer
-        // scroll). The switch still needs to be exhaustive; an empty
-        // view here exists to satisfy the language, not as a "not done
-        // yet" stub.
+        // scroll); this case only satisfies exhaustiveness.
         case .log: EmptyView()
         case .manage: ManagePage(model: model).transition(.identity)
         }

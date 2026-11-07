@@ -4,19 +4,7 @@ import TetherKitIPC
 /// Main window root view: gates on helper availability, then shows
 /// the sidebar shell once the helper is ready.
 ///
-/// Layout evolution:
-///
-///   The old layout was a single-screen, two-column dashboard that
-///   deliberately skipped a sidebar: the whole app did one thing, and
-///   "configure before connecting" and "observe after connecting"
-///   shared one screen. The redesign splits it into pages:
-///   Connection (the action center), Network, Throughput, Log,
-///   Manage, each with its own scrolling. The finer the pages, the
-///   more the sidebar stops being a pointless extra level and becomes
-///   a necessary table of contents.
-///
-///   `SidebarShell` is the skeleton after the split; this file keeps
-///   two jobs:
+/// `SidebarShell` is the skeleton; this file keeps two jobs:
 ///
 ///   1. Gate on helper availability: probing / missing / outdated /
 ///      ready. The first three are the screens new users hit first,
@@ -26,7 +14,7 @@ import TetherKitIPC
 ///   2. Window-level alerts: operation failures and update-check
 ///      results. They belong to the window, whatever page is showing.
 struct ContentView: View {
-    @Bindable var model: AppModel
+    var model: AppModel
 
     var body: some View {
         GeometryReader { proxy in
@@ -74,11 +62,10 @@ struct ContentView: View {
     /// Full-page container for the probing / missing / outdated
     /// helper states.
     ///
-    /// All three states show a single card, centered a bit above
-    /// middle, on the window background. `minHeight` makes the card
-    /// area fill the visible area (sharing the window's background
-    /// gradient) and `basedOnSize` guarantees no scrolling or bounce
-    /// while the content fits.
+    /// All three states show a single card at the top of the window,
+    /// on the shared background. `minHeight` fills the visible area
+    /// and `basedOnSize` suppresses scrolling and bounce while the
+    /// content fits.
     private func gatingPage(_ card: some View, _ proxy: GeometryProxy) -> some View {
         ScrollView {
             card
@@ -146,7 +133,7 @@ private struct ProbingCard: View {
 /// 这是新用户最可能撞上的一屏，所以把「为什么需要」说清楚之后直接给一个
 /// 「安装」按钮 —— 弹一次系统授权框就装好。终端方案降级成折叠里的备选。
 private struct HelperMissingCard: View {
-    @Bindable var model: AppModel
+    var model: AppModel
     let reason: String
 
     var body: some View {
@@ -181,7 +168,7 @@ private struct HelperMissingCard: View {
 /// 单独一屏而不是复用「没安装」：这两种情况下用户要做的事不一样，而且如果不
 /// 明说，症状会表现成调用卡住或直接崩溃 —— 那是最难自查的一类问题。
 private struct HelperOutdatedCard: View {
-    @Bindable var model: AppModel
+    var model: AppModel
     let installed: Int
     let expected: Int
 
@@ -207,7 +194,7 @@ private struct HelperOutdatedCard: View {
 /// 终端方案必须保留而不是彻底删掉：`swift run` 跑的裸可执行文件没有内嵌载荷，
 /// 按钮会明确报错引导到脚本；也总有人就是不愿意往 App 弹的框里输密码。
 private struct HelperInstallSection: View {
-    @Bindable var model: AppModel
+    var model: AppModel
     let buttonTitle: String
     let detail: String
 

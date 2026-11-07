@@ -31,15 +31,12 @@ import SwiftUI
 /// Driver logic for the self-capture.
 enum UiSelfCapture {
 
-    /// Output path parsed from the launch arguments; nil when absent
-    /// (normal launch).
     static func requestedOutputPath() -> String? {
         let arguments = CommandLine.arguments
         return arguments.firstIndex(of: "-SelfCapture")
             .flatMap { index in index + 1 < arguments.count ? arguments[index + 1] : nil }
     }
 
-    /// Schedules one capture + quit once the window is ready.
     static func schedule(_ window: NSWindow, outputPath: String) {
         // Leave time for layout, language restore, and the first status
         // poll: after 1.5 seconds the picture is fully settled.
@@ -50,10 +47,8 @@ enum UiSelfCapture {
     }
 
     private static func capture(_ window: NSWindow, to path: String) {
-        // Rasterize the window's frame view hierarchy, which includes
-        // the title bar and the traffic lights — unlike the old
-        // CGWindowListCreateImage path, this needs no screen
-        // recording permission and works on macOS 15+.
+        // Rasterizes the window's frame view, so the capture includes
+        // the title bar and the traffic lights.
         guard let frame = window.contentView?.superview,
               let rep = frame.bitmapImageRepForCachingDisplay(in: frame.bounds) else { return }
         frame.cacheDisplay(in: frame.bounds, to: rep)
@@ -76,10 +71,10 @@ struct SelfCaptureProbe: NSViewRepresentable {
     final class ProbeView: NSView {
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
-            guard window != nil, !Self.scheduled else { return }
+            guard let window, !Self.scheduled else { return }
             Self.scheduled = true
             guard let path = UiSelfCapture.requestedOutputPath() else { return }
-            UiSelfCapture.schedule(window!, outputPath: path)
+            UiSelfCapture.schedule(window, outputPath: path)
         }
 
         /// SwiftUI repeatedly mounts and unmounts views (a language

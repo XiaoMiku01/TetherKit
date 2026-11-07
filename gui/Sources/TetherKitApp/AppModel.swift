@@ -161,7 +161,8 @@ final class AppModel {
     /// 上次枚举设备的时刻。用单调时钟，避免系统时间被调整时算出负的间隔。
     private var lastDeviceRefresh: ContinuousClock.Instant?
 
-    /// 主窗口当前是否可见。只影响轮询节奏；程序坞图标策略由 MainWindowManager 处理。
+    /// Main window visible? Affects poll cadence only; the dock icon
+    /// policy lives in MainWindowManager.
     private var isWindowVisible = true
 
     /// 缓存的授权令牌。为 nil 表示下次特权操作需要弹框。

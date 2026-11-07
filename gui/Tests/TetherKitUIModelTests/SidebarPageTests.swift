@@ -3,15 +3,14 @@ import SwiftUI
 import TetherKitIPC
 @testable import TetherKitUIModel
 
-/// Locks the sidebar page semantics that used to live unreachably
-/// inside the TetherKitApp executable: the per-run-state color of the
+/// Locks the sidebar page semantics: the per-run-state color of the
 /// Connection tile ("the icon backs the glance") and the persisted
 /// selection resolution.
 ///
 /// The state→color semantics are asserted at the decision level
-/// (`Accent`) — SwiftUI colors backed by dynamic NSColors are not
-/// reliably comparable across constructions — plus spot checks on
-/// static colors (`green`/`red`/`orange`), which compare exactly.
+/// (`Accent`), since SwiftUI colors backed by dynamic NSColors are
+/// not reliably comparable across constructions; spot checks cover
+/// the static colors (`green`/`red`/`orange`), which compare exactly.
 final class SidebarPageTests: XCTestCase {
 
     // MARK: Tint decision

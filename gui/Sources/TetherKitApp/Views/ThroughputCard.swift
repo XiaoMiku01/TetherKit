@@ -10,7 +10,7 @@ import TetherKitIPC
 /// The card carries no title row: it is the body of the "Throughput"
 /// page and the page header already says it (with the LIVE badge).
 struct ThroughputCard: View {
-    @Bindable var model: AppModel
+    var model: AppModel
 
     private var hasData: Bool { !model.throughputHistory.isEmpty }
 
@@ -28,10 +28,8 @@ struct ThroughputCard: View {
         }
     }
 
-    // The four rate tiles form a 2x2 grid, not one row. In the
-    // two-column era this card had half a window column; the Throughput
-    // page is now its own page with the full content width, so a row
-    // would fit. Kept as 2x2 for the next visual pass.
+    // 2x2 rather than one row: down and up keep their columns aligned
+    // across the rate row and the pps row.
     private var rateRow: some View {
         Grid(alignment: .leading,
              horizontalSpacing: Design.Spacing.medium,

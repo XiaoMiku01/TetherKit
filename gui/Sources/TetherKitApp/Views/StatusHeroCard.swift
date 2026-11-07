@@ -6,7 +6,7 @@ import TetherKitIPC
 /// 一屏之内回答四个问题：现在通不通、通到哪张网卡、什么 IP、要不要断开。
 /// 其余细节都往下面的卡片里放 —— 用户九成的时间只看这一块。
 struct StatusHeroCard: View {
-    @Bindable var model: AppModel
+    var model: AppModel
 
     private var accent: Color { Design.accent(for: model.status.runState) }
 

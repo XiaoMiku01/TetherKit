@@ -3,23 +3,15 @@ import TetherKitIPC
 
 /// One page of the main window's sidebar.
 ///
-/// Lives in `TetherKitUIModel` (a library target) instead of the
-/// executable: a SwiftPM executable cannot be `@testable`-imported,
-/// and the tint semantics below deserve unit tests.
+/// Lives in `TetherKitUIModel` because a SwiftPM executable cannot be
+/// `@testable`-imported and the tint semantics deserve unit tests.
+/// Order is by how often the user reaches for a page: Connection is
+/// where actions happen, Throughput/Log are for watching, Manage is
+/// rare, so each step down is one step less frequent.
 ///
-/// The organizing rule carries over from the old ContentView layout:
-/// separate "which device / how to get online" from "how it is running /
-/// what went wrong". The sidebar turns that into spatial order:
-/// Connection is the only place the user acts from, so it goes first;
-/// observability pages (Throughput, Log) come later; admin tasks
-/// (install/uninstall the privileged helper) happen a few times a year
-/// and go last.
-///
-/// The order is fixed on purpose, not alphabetical. Sort key is
-/// "how often you touch it", not a dictionary. Selection is remembered
-/// via `@AppStorage` by `rawValue`, so RENAMING a case drops the
-/// stored selection once, while reordering or adding pages does not.
-/// Think before renaming.
+/// Selection persists via `@AppStorage` by `rawValue`: renaming a case
+/// drops the stored selection once; reordering or adding cases does
+/// not. Think before renaming.
 public enum SidebarPage: String, CaseIterable, Identifiable, Hashable {
     case connection
     case network
@@ -31,8 +23,6 @@ public enum SidebarPage: String, CaseIterable, Identifiable, Hashable {
 
     /// Restores a persisted selection: empty strings and rawValues of
     /// renamed pages fall back to `connection`, the natural home page.
-    /// (Selection persists via `@AppStorage` by `rawValue`; reordering
-    /// or adding cases does not disturb it.)
     public static func resolveStored(_ storedValue: String?) -> SidebarPage {
         storedValue.flatMap(SidebarPage.init(rawValue:)) ?? .connection
     }
@@ -49,7 +39,6 @@ public enum SidebarPage: String, CaseIterable, Identifiable, Hashable {
 
     public var title: String { L(titleKey) }
 
-    /// SF Symbol for the page icon.
     public var symbol: String {
         switch self {
         case .connection: return "cable.connector"
@@ -61,8 +50,9 @@ public enum SidebarPage: String, CaseIterable, Identifiable, Hashable {
     }
 
     /// Tile color. A colored tile behind each icon is one of the most
-    /// recognizable visual cues in the reference UIs (Hand Mirror /
-    /// Dropover); every page gets a fixed color.
+    /// recognizable visual cues in the reference UIs; every page is
+    /// fixed, except Connection's, which `tint(for:status:)` drives
+    /// with the session state.
     public var tint: Color {
         switch self {
         case .connection: return .blue
@@ -76,28 +66,26 @@ public enum SidebarPage: String, CaseIterable, Identifiable, Hashable {
 
 extension SidebarPage {
 
-    /// The Connection tile changes color with session state.
+    /// The Connection tile's color-with-session-state decision:
+    /// `fixed` keeps the page's own tint; the other cases carry the
+    /// session states (see `accentColor`).
     ///
-    /// The sidebar is always in view: while a session runs, even the icon
-    /// turns green, so a glance confirms the connection is alive. Other
-    /// pages keep fixed colors; state semantics belong to this page only.
+    /// The sidebar stays in view while a session runs, so the tile
+    /// (icon too) confirms at a glance that the connection is alive.
+    /// Other pages keep fixed colors; state semantics belong to this
+    /// page only.
     ///
-    /// The decision is separated from its rendering on purpose: unit
-    /// tests lock the decision (`accent`), while SwiftUI color equality
-    /// is only compared for statics (dynamic NSColor-backed colors are
-    /// not reliably comparable across constructions).
+    /// Decision and rendering are separate so tests can lock the
+    /// decision (`accent`); SwiftUI color equality is compared only
+    /// for static colors (dynamic NSColor-backed colors are not
+    /// reliably comparable across constructions).
     enum Accent: Equatable {
-        /// Keep the page's own fixed tile color.
         case fixed
-        /// Session is live.
         case live
-        /// Session failed.
         case failed
-        /// Session is starting / stopping.
         case transitioning
     }
 
-    /// Session-state → accent decision, framework-free.
     static func accent(for page: SidebarPage, status: SessionStatus) -> Accent {
         guard case .connection = page else { return .fixed }
         switch status.runState {
@@ -108,7 +96,7 @@ extension SidebarPage {
         }
     }
 
-    /// Renders the decision; `fixed` falls back to the page's own tint.
+    /// Renders the decision; the `fixed` case returns its `fallback`.
     static func accentColor(_ accent: Accent, fallback: Color) -> Color {
         switch accent {
         case .fixed: return fallback

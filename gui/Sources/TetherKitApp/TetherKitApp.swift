@@ -17,14 +17,13 @@ import TetherKitIPC
 ///   轮询在窗口关闭后**不**停（菜单栏靠它喂数据），只是在「窗口关着且会话
 ///   没跑」时放慢到 2 秒一次，见 AppModel.pollDelay。
 ///
-/// ★ 窗口归属 ★
+/// ★ Window ownership ★
 ///
-///   主窗口是一个 **AppKit 自己管**的窗口（`MainWindowManager`）：普通的
-///   fullSizeContentView + 透明、隐藏标题栏的 NSWindow，里面嵌 SwiftUI。
-///   为什么不让 SwiftUI 的 `Window` 场景出窗口：那个路径会给窗口套一层
-///   紧凑、flat 的自绘材质（实测所有 macOS 窗口里最小、最平的一组灯），
-///   换成 AppKit 自主管理后，三灯就是所有普通窗口的标准样式（大号、
-///   有立体感）。详见 MainWindowManager 的说明。
+///   The main window is an AppKit-managed window (`MainWindowManager`):
+///   a plain NSWindow (fullSizeContentView, transparent, title hidden)
+///   hosting SwiftUI. The window chrome comes from the executable's
+///   `sdk` stamp, not from which layer owns the window; see
+///   `MainWindowManager` and the linker settings in `Package.swift`.
 @main
 struct TetherKitApplication: App {
     @State private var model = AppModel()
@@ -45,9 +44,6 @@ struct TetherKitApplication: App {
         // once launch finishes; the policy still gates whether the app
         // can become key, so normalize it here. A packaged .app gets
         // .regular from LaunchServices and never hits this branch.
-        // The NSApp global is an implicitly unwrapped optional that is
-        // nil until NSApplication exists; touch NSApplication.shared to
-        // initialize AppKit.
         if NSApplication.shared.activationPolicy() == .prohibited {
             NSApplication.shared.setActivationPolicy(.regular)
         }
@@ -62,9 +58,8 @@ struct TetherKitApplication: App {
 
     var body: some Scene {
         // Persistent menu bar item: icon + live rate.
-        // The .window style gives it a small panel instead of a menu
-        // list: rates and addresses are things you look at, not things
-        // you pick, and menu items can't hold them.
+        // The .window style gives it a small panel, which can hold a
+        // Language submenu and live values that menu items cannot.
         // Commands live on this scene — there is no Window scene
         // anymore; the main window belongs to AppKit (see
         // MainWindowManager).
@@ -77,8 +72,9 @@ struct TetherKitApplication: App {
         .commands {
             // 「新建窗口」对单窗口应用没有意义，去掉免得用户点了没反应。
             CommandGroup(replacing: .newItem) {}
-            // ⌘W：没有 Window 场景就没有系统自带的「关闭」，手动补上。
-            // 语义 = 隐藏主窗口、退到菜单栏（与红色关闭按钮一致）。
+            // ⌘W: no Window scene means no built-in system Close, so
+            // this menu item hides the main window and drops to
+            // menu-bar mode (same as the red close button).
             CommandGroup(after: .newItem) {
                 Button(L(.closeWindow)) { MainWindowManager.shared.closeMainWindow() }
                     .keyboardShortcut("w")
@@ -138,12 +134,11 @@ private struct LanguageMenu: View {
     }
 }
 
-/// 主窗口的根视图：固定尺寸的内容 + 轮询启动。
+/// Main window root: fixed-size content + poll startup.
 ///
-/// 窗口本身由 AppKit 管（见 `MainWindowManager`）：任何 AppKit 窗口在
-/// 透明、隐藏标题栏下都画标准样式的三灯（SwiftUI 的 Window 场景画出的
-/// 是紧凑扁平的一套，实测不一致）。关闭窗口 = orderOut 而不是销毁，
-/// App 转入菜单栏模式。
+/// The window itself is AppKit-managed (`MainWindowManager`); closing
+/// it hides the window (orderOut, not destroy) and the app drops to
+/// menu-bar mode.
 struct MainWindowRoot: View {
     var model: AppModel
 
@@ -166,16 +161,11 @@ struct MainWindowRoot: View {
 // MARK: - Launch-time window presentation
 //
 //   The main window is created and presented by the app delegate
-//   (MainWindowManager), not by a SwiftUI scene. Bare executables
-//   (swift build output, no bundle id) launch with the
-//   .prohibited activation policy; init() upgrades it so the app
-//   can become key. A packaged .app gets .regular from
-//   LaunchServices and never hits that branch.
-//
-//   The model crosses to the delegate through the static slot below:
-//   the adaptor hands us an instance, but setting instance state on it
-//   from App.init is init-order dependent, so the launch slot is the
-//   deterministic channel.
+//   (MainWindowManager), not by a SwiftUI scene. The model crosses
+//   to the delegate through the static slot below: the adaptor hands
+//   us an instance, but setting instance state on it from App.init
+//   is init-order dependent, so the launch slot is the deterministic
+//   channel.
 final class TetherKitAppDelegate: NSObject, NSApplicationDelegate {
     static var launchModel: AppModel?
 
@@ -184,9 +174,9 @@ final class TetherKitAppDelegate: NSObject, NSApplicationDelegate {
         MainWindowManager.shared.present(model)
     }
 
-    /// Double-clicking the app icon (e.g. in Finder) asks to reopen the
-    /// window. SwiftUI's scene lifecycle never delivered this callback;
-    /// now it does, so wire it up: reopening shows the main window.
+    /// Double-clicking the app icon (e.g. in Finder) asks to reopen
+    /// the window. SwiftUI's scene lifecycle never delivered this
+    /// callback; reopen shows the main window.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
         if !hasVisibleWindows, let model = Self.launchModel {
             MainWindowManager.shared.present(model)

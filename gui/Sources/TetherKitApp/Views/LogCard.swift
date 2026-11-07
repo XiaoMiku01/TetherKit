@@ -7,12 +7,10 @@ import TetherKitIPC
 /// three things: filter by level, auto-scroll to the newest line,
 /// copy everything in one tap (users paste it straight into an issue).
 ///
-/// The card owns the Log page: no outer scroll, the list grows with
-/// the window, and `minHeight` is only a floor for extreme window
-/// sizes. (It used to sit in the two-column dashboard's right column
-/// with a pinned 90pt height; that path is gone.)
+/// Height: no outer scroll, so the list grows with the window, and
+/// `minHeight` is only a floor.
 ///
-/// The card carries no title row — the page header already says
+/// The card carries no title row: the page header already says
 /// "Log".
 struct LogCard: View {
     @Bindable var model: AppModel
@@ -22,6 +20,8 @@ struct LogCard: View {
         Card {
             VStack(alignment: .leading, spacing: Design.Spacing.small) {
                 toolbar
+                // 288 is only the floor for tight windows; the page
+                // supplies the growth room above it.
                 logList.frame(minHeight: 288, maxHeight: .infinity)
                 if model.droppedLogCount > 0 {
                     Label(L(.logDroppedNotice, Int(model.droppedLogCount)),
@@ -85,8 +85,8 @@ struct LogCard: View {
         }
     }
 
-    /// The list body itself: no height semantics of its own (the page
-    /// supplies the frame).
+    /// The list body itself: no height semantics (the `logList`
+    /// wrapper supplies the frame).
     private var listBody: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 2) {

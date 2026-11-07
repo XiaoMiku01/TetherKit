@@ -4,18 +4,12 @@ import TetherKitIPC
 
 /// Owns the main window.
 ///
-/// Why not SwiftUI's `Window` scene: it creates the window with its
-/// own compact chrome — small, flat traffic lights (measured: 12pt
-/// circles in 14×16pt frames at 20pt spacing, versus the stock
-/// full-size ones every ordinary window on this machine paints:
-/// 14pt circles in 14×14pt frames at 23pt spacing). Even
-/// `hiddenTitleBar` plus a bare unified toolbar never flips the
-/// rendering (tested). The fix is to make the window like every
-/// other window on the machine: a plain `NSWindow` with
-/// `fullSizeContentView` and a transparent, title-hidden bar hosting
-/// the SwiftUI content via `NSHostingView`. The bar still drags the
-/// window; the three lights behave as usual (zoom is disabled since
-/// the window is intentionally fixed-size and fullscreen is unneeded).
+/// Why not SwiftUI's `Window` scene: it defers the first window and
+/// rebuilds it when the app drops to menu-bar mode; owning one window
+/// object from the app delegate is deterministic and exposes the
+/// reopen hook. Chrome (traffic-light size and spacing) is decided by
+/// the executable's LC_BUILD_VERSION `sdk` stamp, not by the layer
+/// owning the window; see the linker settings in Package.swift.
 ///
 /// One window object, reused forever: the menu bar's "Open Main
 /// Window" re-shows it, the red close button hides it, and closing it
@@ -40,11 +34,9 @@ final class MainWindowManager: NSObject {
         model.windowDidAppear()
     }
 
-    /// Hides the window — File ▸ Close (⌘W) and the red close button
-    /// both go through performClose, so both end in the same
-    /// hide-and-menu-bar-mode path. Deliberately targets the main
-    /// window even when the menu-bar panel is key; a no-op when the
-    /// window is already hidden.
+    /// Hides the main window (File ▸ Close / ⌘W and the red close
+    /// button land on the same path), even when the menu-bar panel is
+    /// key; a no-op when the window is already hidden.
     func closeMainWindow() {
         window?.performClose(nil)
     }
@@ -61,15 +53,14 @@ final class MainWindowManager: NSObject {
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
         // Zoom does nothing on a fixed-size window; disable it
-        // explicitly rather than leave a live-looking gray button.
+        // explicitly rather than leave a live-looking button.
         window.standardWindowButton(.zoomButton)?.isEnabled = false
-        // Hosting sizing propagation OFF: the hosting view must not drive
-        // the window size from page content. Default sizing options push
-        // min/intrinsic/max into the window as pages swap (page heights
-        // differ), and on macOS 26 content-size changes synchronize with
-        // window-frame animation (WWDC25-256) — the click's "bulge". The
-        // window is fixed-size forever: propagation off, min/max asserted
-        // after hosting is attached so it cannot override them.
+        // Hosting sizing propagation OFF: the hosting view must not
+        // drive the window size from page content. Default sizing
+        // options push min/intrinsic/max into the window as pages swap
+        // (page heights differ), and on macOS 26 content-size changes
+        // synchronize with window-frame animation (WWDC25-256), the
+        // click's "bulge".
         let hosting = NSHostingView(rootView: MainWindowRoot(model: model))
         hosting.sizingOptions = []
         window.contentView = hosting

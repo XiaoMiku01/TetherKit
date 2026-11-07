@@ -592,19 +592,20 @@ TX 就从 4.8 回到了 87 Mbps。
    以后每个发行包都核对：
    `otool -l <binary> | rg -A4 LC_BUILD_VERSION` —— `sdk` 必须 ≥ 26。
    主窗口另改为 AppKit 自管 `NSWindow`（MainWindowManager）：启动即确定性呈现，
-   不再依赖 SwiftUI 场景的实例化时机，三灯同为 stock 样式。
-20. **`.prohibited` / dev 裸跑的退场与新链**：主窗口不再由 SwiftUI `Window`
+   不再依赖 SwiftUI 场景的实例化时机。三灯样式与窗口归属无关，由上面的
+   `sdk` 决定。
+20. **`.prohibited` / dev 裸跑的窗口展示**：主窗口不再由 SwiftUI `Window`
    场景出，而是由 `@NSApplicationDelegateAdaptor` 的 delegate 在
    `applicationDidFinishLaunching` 里创建并 `makeKeyAndOrderFront` ——
-   裸跑照常弹窗，「要点菜单栏救一次」已成历史；`isWindowPresentationExpected`
+   裸跑照常弹窗，不再需要菜单栏手动救回；`isWindowPresentationExpected`
    一类的把关代码全部删除（窗口何时出现由 MainWindowManager 自管，SwiftUI
    再无场景可擅自重建）。保留 `TetherKitApplication.init()` 里的
    `.prohibited → .regular` 自检：它不管窗口显现，管的是未激活进程的
    正常激活语义。
-21. **SwiftPM 把 `sdk` 钉成 deployment target 是系统症。** 任何不打
+21. **SwiftPM 把 `sdk` 钉成 deployment target 是系统性问题。** 任何不打
    `-platform_version` 的 SwiftPM 工程在 Tahoe 上都会被当 legacy app；
    Homebrew 构建同样受影响 —— 若 formula 构建漏带该 flag，用户装出来
-   就是小灯。
+   仍是 legacy 三灯。
 22. **macOS 26 把 Button 动作的视图更新包进带动画的事务（按钮激活上下文）。**
    点击侧栏换页时新页短暂放大约 8-10% 再缩回，仅点击触发；定时器驱动同一状态
    则逐像素纯净。`Transaction.disablesAnimations` 只阻止新的隐式 `.animation`

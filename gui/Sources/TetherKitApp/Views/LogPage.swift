@@ -1,6 +1,5 @@
 import SwiftUI
 import TetherKitIPC
-import TetherKitUIModel
 
 /// The "Log" page.
 ///
@@ -12,13 +11,15 @@ import TetherKitUIModel
 /// pages; this page owns its height semantics (see LogCard) and
 /// branches separately in the shell.
 struct LogPage: View {
-    @Bindable var model: AppModel
+    var model: AppModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: Design.Spacing.large) {
             SidebarPageHeading(title: L(.pageLogTitle))
             LogCard(model: model)
         }
+        // Same paddings as SidebarShell.scrollablePage: the two page
+        // containers must match edge to edge.
         .padding(.horizontal, Design.Spacing.large)
         .padding(.top, Design.Spacing.medium + 4)
         .padding(.bottom, Design.Spacing.large)

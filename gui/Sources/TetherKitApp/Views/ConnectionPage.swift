@@ -1,16 +1,13 @@
 import SwiftUI
 import TetherKitIPC
 
-/// The "Connection" page under the sidebar layout: the app's single
-/// point of action.
-///
-/// Top to bottom: status hero (running or not, disconnect if needed)
-/// then environment warning (only when the environment fails) then
-/// device selection (which device, MTU/MAC). Network setup moved to the
-/// "Network" page. The only decision before connecting is the device;
-/// every other decision makes sense once the network interface exists.
+/// The "Connection" page: the app's single point of action. Status
+/// hero, environment warning (only on failure), device selection.
+/// Network setup lives on the "Network" page. The only decision before
+/// connecting is the device; every other decision makes sense once the
+/// network interface exists.
 struct ConnectionPage: View {
-    @Bindable var model: AppModel
+    var model: AppModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: Design.Spacing.gutter) {
@@ -21,9 +18,8 @@ struct ConnectionPage: View {
     }
 }
 
-/// Warning shown when the environment check fails. Hidden when it
-/// passes: when nothing is wrong, do not take any of the user's
-/// attention.
+/// Shown when the environment check fails; hidden when it passes, so
+/// a healthy environment takes none of the user's attention.
 struct EnvironmentWarningCard: View {
     let environment: EnvironmentReport?
 
