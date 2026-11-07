@@ -1,5 +1,6 @@
 import SwiftUI
 import TetherKitIPC
+import TetherKitUIModel
 
 /// Main window frame: sidebar plus content area.
 ///
@@ -29,7 +30,7 @@ struct SidebarShell: View {
     @AppStorage("tetherkit.sidebar.page") private var storedPage: String = ""
 
     private var selection: SidebarPage {
-        SidebarPage(rawValue: storedPage) ?? .connection
+        SidebarPage.resolveStored(storedPage)
     }
 
     private func select(_ page: SidebarPage) {
@@ -97,6 +98,18 @@ struct SidebarShell: View {
     /// (Hand Mirror about 1/3, Dropover about 1/4).
     private static let sidebarWidth: CGFloat = 204
 
+    /// The branding row's app icon. A bare `swift run` binary carries
+    /// no icon asset, and `NSApp.applicationIconImage` then falls back
+    /// to the generic "generic app" folder-style image (it read as a
+    /// blue folder in self-captures). Brand with the real icon only
+    /// when the bundle actually ships one; otherwise the row is
+    /// text-only.
+    private static let brandIcon: NSImage? = {
+        let shipsIcon = Bundle.main.object(forInfoDictionaryKey: "CFBundleIconName") != nil
+            || Bundle.main.path(forResource: "AppIcon", ofType: "icns") != nil
+        return shipsIcon ? NSApp.applicationIconImage : nil
+    }()
+
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             rows
@@ -107,12 +120,14 @@ struct SidebarShell: View {
 
             // App identity row at the bottom (matching the reference
             // apps: icon + name + version, quiet, not interactive).
-            // A bare `swift run` binary has no version; half a hidden
-            // line is fine.
+            // A bare `swift run` binary has no version (half a hidden
+            // line is fine) and no icon (see brandIcon).
             HStack(alignment: .center, spacing: Design.Spacing.small) {
-                Image(nsImage: NSApp.applicationIconImage)
-                    .resizable()
-                    .frame(width: 28, height: 28)
+                if let icon = Self.brandIcon {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .frame(width: 28, height: 28)
+                }
                 VStack(alignment: .leading, spacing: 1) {
                     Text(verbatim: "TetherKit")
                         .font(.callout.weight(.medium))
@@ -165,12 +180,6 @@ struct SidebarShell: View {
 
     // MARK: - Content area
 
-    /// Upper bound for page content width. The window is fixed at
-    /// 800pt (≈595pt of content after the sidebar and hairline), so
-    /// this never binds today; it stays as the documented ceiling for
-    /// a future wider window.
-    private static let contentWidthCap: CGFloat = 640
-
     @ViewBuilder
     private var content: some View {
         if selection == .log {
@@ -213,7 +222,7 @@ struct SidebarShell: View {
                 pageHeading
                 pageBody
             }
-            .frame(maxWidth: Self.contentWidthCap, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, Design.Spacing.large)
             .padding(.top, Design.Spacing.medium + 4)
             .padding(.bottom, Design.Spacing.large)

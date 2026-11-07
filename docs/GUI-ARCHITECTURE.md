@@ -62,8 +62,13 @@ gui/
 │   ├── TetherKitIPC/                  App 与 helper 共享：协议、模型、授权、文案表
 │   ├── TetherKitCore/                 C ABI 的 Swift 封装
 │   ├── TetherKitHelper/               特权 helper
-│   └── TetherKitApp/                  SwiftUI 界面
+│   ├── TetherKitUIModel/              主窗口页面模型（SidebarPage：固定取色与
+│   │                                  会话状态取色、持久化选择解析）—— 独立
+│   │                                  library 是为了可单测（可执行 target 不能
+│   │                                  被 @testable import）
+│   └── TetherKitApp/                  SwiftUI 界面（含窗基座与各页面视图）
 ├── Tests/TetherKitIPCTests/           授权凭据生命周期 + 文案表占位符一致性
+├── Tests/TetherKitUIModelTests/       页面 tint 语义 + 持久化选择解析
 ├── Resources/                         Info.plist、LaunchDaemon plist
 └── Scripts/                           构建 / 安装 / 卸载脚本
 ```

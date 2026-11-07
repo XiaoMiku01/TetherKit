@@ -1,3 +1,4 @@
+#if DEBUG
 import AppKit
 import SwiftUI
 
@@ -23,6 +24,9 @@ import SwiftUI
 // A few dozen lines here buy the "edit UI, auto-capture, view PNG"
 // loop without any screen permission. Retire it when CI grows a real
 // replacement.
+//
+// Gated to DEBUG so release binaries ship a no-op attachment point
+// instead of an unused launch-arg screenshot + terminate tool.
 
 /// Driver logic for the self-capture.
 enum UiSelfCapture {
@@ -93,3 +97,13 @@ extension View {
         background(SelfCaptureProbe())
     }
 }
+#else
+// RELEASE builds ship no capture tool. The attachment point stays a
+// no-op with the same signature so the app code never needs #if DEBUG
+// at the call site.
+import SwiftUI
+
+extension View {
+    func handleSelfCaptureRequest() -> some View { self }
+}
+#endif

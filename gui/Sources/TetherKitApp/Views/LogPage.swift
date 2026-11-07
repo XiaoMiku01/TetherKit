@@ -1,5 +1,6 @@
 import SwiftUI
 import TetherKitIPC
+import TetherKitUIModel
 
 /// The "Log" page.
 ///

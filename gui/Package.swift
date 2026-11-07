@@ -114,10 +114,19 @@ let package = Package(
 
         // 用户看到的 SwiftUI App（普通用户身份运行）。
         .executableTarget(name: "TetherKitApp",
-                          dependencies: ["TetherKitCore", "TetherKitIPC"],
+                          dependencies: ["TetherKitCore", "TetherKitIPC", "TetherKitUIModel"],
                           linkerSettings: tetherkitAppLinkerSettings),
+
+        // 主窗口的页面模型（SidebarPage：标题 / 图标 / 固定取色与
+        // 会话状态取色、持久化选择的解析）。独立 library 而不是
+        // 塞进 TetherKitApp：可执行 target 无法被测试 @testable
+        // import，拖出来 tint 语义才锁得住（见 TetherKitUIModelTests）。
+        .target(name: "TetherKitUIModel", dependencies: ["TetherKitIPC"]),
 
         // 只测 TetherKitIPC：它是唯一「纯逻辑、不碰硬件也不需要 root」的层。
         // 会话与网卡配置的测试在 C++ 侧（tests/test_capi.cc），不在这里重复。
         .testTarget(name: "TetherKitIPCTests", dependencies: ["TetherKitIPC"]),
+
+        // 页面模型（TetherKitUIModel）的纯逻辑：tint 决策与持久化选择。
+        .testTarget(name: "TetherKitUIModelTests", dependencies: ["TetherKitUIModel"]),
     ])
