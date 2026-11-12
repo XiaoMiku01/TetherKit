@@ -65,13 +65,17 @@ if compgen -G "${SOURCE_DIR}/libusb-*.dylib" >/dev/null; then
   cp -a "${SOURCE_DIR}"/libusb-*.dylib "${TOOLS_DIR}/"
 fi
 
-# LaunchDaemon 对权限有硬性要求：属主必须是 root:wheel，且**不能**对组或其他
-# 用户可写。不满足时 launchd 会拒绝加载，报的是含糊的 "Service cannot load in
-# requested session"。
-chown -R root:wheel "${TOOLS_DIR}"
-chmod 755 "${TOOLS_DIR}"
+# LaunchDaemon 对权限有硬性要求：TetherKit 安装的 helper 与 dylib 必须属于
+# root:wheel，且不能对组或其他用户可写。TOOLS_DIR 是多个应用共用的目录；
+# 绝不能递归 chown/chmod 整个目录，否则会改动其他应用的 helper，或因受保护
+# 文件导致安装中断。
+chown root:wheel "${INSTALL_PATH}"
 chmod 544 "${INSTALL_PATH}"
-find "${TOOLS_DIR}" -maxdepth 1 -name '*.dylib' -type f -exec chmod 444 {} +
+for library in "${TOOLS_DIR}"/libtetherkit*.dylib "${TOOLS_DIR}"/libusb-*.dylib; do
+  [[ -f "${library}" ]] || continue
+  chown root:wheel "${library}"
+  chmod 444 "${library}"
+done
 
 log "安装 ${PLIST_PATH}"
 cp "${SOURCE_DIR}/${LABEL}.plist" "${PLIST_PATH}"

@@ -585,6 +585,9 @@ TX 就从 4.8 回到了 87 Mbps。
    `rx-inject` 保持 runnable 并烧满 CPU。`FrameRing` 用原子 epoch + `wait/notify`
    在发布新帧、恢复和停机时唤醒消费者；消费者先取 epoch 再检查队列，避免
    「检查为空」与进入等待之间丢通知。不要将长期空闲路径退回 yield 轮询。
+20. **`/Library/PrivilegedHelperTools` 是共享目录。** 安装 helper 时只改
+    TetherKit 自己安装的 helper 与 dylib 的 owner/mode；不能对整个目录递归
+    `chown`/`chmod`，否则会修改其他应用的 helper，或被受保护文件阻断安装。
 
 ---
 
