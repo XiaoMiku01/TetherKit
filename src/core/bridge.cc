@@ -91,6 +91,7 @@ void Bridge::Stop() {
   //     而这里是调用 Stop() 的那个线程（主线程或控制线程），安全。
   // ---------------------------------------------------------------------------
   stop_requested_.store(true, std::memory_order_release);
+  rx_ring_->WakeConsumer();
 
   link_->Interrupt();
 
@@ -112,6 +113,7 @@ void Bridge::Stop() {
 
 void Bridge::SetPaused(bool paused) noexcept {
   paused_.store(paused, std::memory_order_release);
+  rx_ring_->WakeConsumer();
   if (!paused) {
     return;
   }
@@ -145,13 +147,18 @@ void Bridge::RunReceiveInjector() noexcept {
       // 置确认位是给 SetPaused(true) 看的：从这里到下一轮看见 paused_ 变回
       // false 之前，本线程不会碰 rx_ring_，所以这个确认是可信的。
       rx_paused_ack_.store(true, std::memory_order_release);
-      std::this_thread::yield();
+      const std::uint64_t ticket = rx_ring_->ConsumerTicket();
+      if (paused_.load(std::memory_order_acquire) &&
+          !stop_requested_.load(std::memory_order_acquire)) {
+        rx_ring_->WaitForConsumerChange(ticket);
+      }
       continue;
     }
 
     // 攒一批再写。批量会话在作用域结束时才一次性释放槽位，因此期间取出的
     // 全部视图都保持有效 —— 这正是「零拷贝交给一次批量 write()」的前提。
     rx_batch_.clear();
+    const std::uint64_t idle_ticket = rx_ring_->ConsumerTicket();
     {
       auto batch = rx_ring_->BeginBatchRead();
       while (rx_batch_.size() < config_.rx_write_batch) {
@@ -163,13 +170,15 @@ void Bridge::RunReceiveInjector() noexcept {
       }
 
       if (rx_batch_.empty()) {
-        // 队列空。先自旋一小会儿覆盖「生产者正在写下一帧」这种极短空窗，
-        // 再让出 CPU —— 纯自旋会白烧一个核，直接 yield 又会在高吞吐下抬高延迟。
+        // 队列空时只短暂自旋以覆盖相邻帧的间隙；长期空闲就原子等待生产者通知。
         if (++idle_spins < config_.rx_spin_before_yield) {
           continue;
         }
         idle_spins = 0;
-        std::this_thread::yield();
+        if (!stop_requested_.load(std::memory_order_acquire) &&
+            !paused_.load(std::memory_order_acquire)) {
+          rx_ring_->WaitForConsumerChange(idle_ticket);
+        }
         continue;
       }
       idle_spins = 0;

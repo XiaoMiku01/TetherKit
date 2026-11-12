@@ -23,6 +23,7 @@
 #pragma once
 
 #include <cassert>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -111,6 +112,7 @@ class FrameRing {
     assert(length <= max_frame_bytes_);
     StoreLength(pending_write_index_, length);
     cursor_.PublishWrite();
+    WakeConsumer();
   }
 
   /// 便捷入口：拷贝一整帧进队列。成功返回 true，队列满或帧超长返回 false。
@@ -192,6 +194,7 @@ class FrameRing {
     void Publish() noexcept {
       if (staged_ != 0) {
         ring_->cursor_.PublishWrite(staged_);
+        ring_->WakeConsumer();
         published_ += staged_;
         staged_ = 0;
       }
@@ -299,6 +302,22 @@ class FrameRing {
 
   [[nodiscard]] BatchRead BeginBatchRead() noexcept { return BatchRead{*this}; }
 
+  /// Snapshot a producer notification generation before checking the queue.
+  /// Waiting against this ticket avoids losing a publish between the empty check
+  /// and parking the consumer.
+  [[nodiscard]] std::uint64_t ConsumerTicket() const noexcept {
+    return consumer_epoch_.load(std::memory_order_acquire);
+  }
+
+  void WaitForConsumerChange(std::uint64_t ticket) const noexcept {
+    consumer_epoch_.wait(ticket, std::memory_order_acquire);
+  }
+
+  void WakeConsumer() noexcept {
+    consumer_epoch_.fetch_add(1, std::memory_order_release);
+    consumer_epoch_.notify_all();
+  }
+
   // ---------------------------------------------------------------------------
   // 观测
   // ---------------------------------------------------------------------------
@@ -359,6 +378,7 @@ class FrameRing {
   }
 
   SpscCursor cursor_;
+  mutable std::atomic<std::uint64_t> consumer_epoch_{0};
 
   // 构造后只读，两侧线程都只做读取，可以安全共享同一条缓存行。
   std::uint32_t max_frame_bytes_;
