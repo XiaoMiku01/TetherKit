@@ -110,13 +110,38 @@ struct MenuBarPanel: View {
     }
 
     private var actions: some View {
-        VStack(alignment: .leading, spacing: Design.Spacing.tight) {
+        let isRunning = status.runState == .running
+        let isTransitional = status.runState.isTransitional
+
+        return VStack(alignment: .leading, spacing: Design.Spacing.tight) {
             HStack {
+                Button {
+                    Task {
+                        if isRunning {
+                            await model.stopSession()
+                        } else {
+                            await model.startSession()
+                        }
+                    }
+                } label: {
+                    HStack(spacing: Design.Spacing.tight) {
+                        if isTransitional || model.isBusy {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Image(systemName: isRunning ? "stop.fill" : "play.fill")
+                        }
+                        Text(L(isRunning ? .disconnect : .connect))
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .tint(isRunning ? .red : .accentColor)
+                .disabled(model.isBusy || isTransitional || (!isRunning && model.devices.isEmpty))
+
                 Button(L(.openMainWindow)) {
                     dismiss()
                     presentMainWindow(model, openWindow)
                 }
-                .buttonStyle(.borderedProminent)
                 .controlSize(.small)
 
                 Spacer()
