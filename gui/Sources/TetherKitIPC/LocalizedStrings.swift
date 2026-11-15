@@ -235,6 +235,8 @@ public enum L10nKey: String, CaseIterable, Sendable {
     case routerOptional
     case deleteThisEntry
     case addDNSServer
+    case autoApplyNetwork
+    case autoApplyNetworkHelp
     case setDefaultRoute
     case setDefaultRouteHelp
     case setDefaultRouteTooltip
@@ -662,6 +664,10 @@ extension L10nKey {
         case .routerOptional: return ("可留空", "Optional")
         case .deleteThisEntry: return ("删除这一条", "Remove this entry")
         case .addDNSServer: return ("添加 DNS 服务器（最多 4 条）", "Add a DNS server (up to 4)")
+        case .autoApplyNetwork: return ("连接后自动应用", "Auto-apply on connect")
+        case .autoApplyNetworkHelp:
+            return ("会话就绪后自动按当前上网方式配置网卡",
+                    "Automatically configure network interface once connected")
         case .setDefaultRoute: return ("让所有流量默认走这张网卡", "Route all traffic through this interface")
         case .setDefaultRouteHelp:
             return ("不开启时，只有明确绑定到本网卡的流量走它。",

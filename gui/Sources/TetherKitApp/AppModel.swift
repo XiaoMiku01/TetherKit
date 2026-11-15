@@ -122,6 +122,17 @@ final class AppModel {
     var adoptDeviceMAC: Bool = true
     /// 网络配置表单。
     var networkConfiguration: NetworkConfiguration = .dhcp
+    /// 会话建立后是否自动应用当前上网方式配置。
+    var autoApplyNetwork: Bool = {
+        if UserDefaults.standard.object(forKey: "TetherKitAutoApplyNetwork") != nil {
+            return UserDefaults.standard.bool(forKey: "TetherKitAutoApplyNetwork")
+        }
+        return true
+    }() {
+        didSet {
+            UserDefaults.standard.set(autoApplyNetwork, forKey: Self.autoApplyDefaultsKey)
+        }
+    }
 
     /// 界面语言偏好。改它会**同时**做三件事：切 Swift 侧的文案表、把语言推给
     /// libtetherkit（否则日志卡里会混进另一种语言）、再推给 helper（它以 root
@@ -160,6 +171,8 @@ final class AppModel {
     private var sessionStartedAt: Date?
     /// 上次枚举设备的时刻。用单调时钟，避免系统时间被调整时算出负的间隔。
     private var lastDeviceRefresh: ContinuousClock.Instant?
+    private var hasAutoAppliedNetwork = false
+    private static let autoApplyDefaultsKey = "TetherKitAutoApplyNetwork"
 
     /// 主窗口当前是否可见。只影响轮询节奏；程序坞图标策略在视图层处理。
     private var isWindowVisible = true
@@ -360,6 +373,18 @@ final class AppModel {
         } else {
             networkState = .empty
         }
+
+        if autoApplyNetwork,
+           !hasAutoAppliedNetwork,
+           status.runState == .running,
+           !status.systemInterface.isEmpty,
+           !networkState.hasAddress,
+           !isBusy {
+            hasAutoAppliedNetwork = true
+            Task {
+                await applyNetworkConfiguration()
+            }
+        }
     }
 
 
@@ -374,6 +399,10 @@ final class AppModel {
             sessionStartedAt = Date()
         } else if fresh.runState != .running, fresh.runState != .stopping {
             sessionStartedAt = nil
+        }
+
+        if fresh.runState != .running {
+            hasAutoAppliedNetwork = false
         }
 
         guard let previous = previousStatus,

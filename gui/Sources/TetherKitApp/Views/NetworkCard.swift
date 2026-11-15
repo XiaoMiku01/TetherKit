@@ -42,6 +42,7 @@ struct NetworkCard: View {
                     EmptyView()
                 }
 
+                autoApplyToggle
                 defaultRouteToggle
                 actionRow
 
@@ -180,6 +181,17 @@ struct NetworkCard: View {
             Spacer(minLength: 0)
         }
         .help(Self.dnsHint)
+    }
+
+    private var autoApplyToggle: some View {
+        Toggle(isOn: $model.autoApplyNetwork) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(L(.autoApplyNetwork))
+                Text(L(.autoApplyNetworkHelp))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 
     private var defaultRouteToggle: some View {
