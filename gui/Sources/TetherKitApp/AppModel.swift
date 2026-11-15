@@ -451,11 +451,15 @@ final class AppModel {
         isBusy = true
         defer { isBusy = false }
 
+        // 连接前强制刷新一次设备列表，避免因 Android 手机切换 USB 共享模式重枚举而拿到旧的设备地址。
+        await refreshDevices()
+
         var configuration = SessionConfiguration(mtu: requestedMTU,
                                                  adoptDeviceMAC: adoptDeviceMAC)
-        // 指定总线 + 地址而不是 VID/PID：同型号两台设备 VID/PID 完全一样，
-        // 只有总线地址能区分。
+        // 指定总线 + 地址以及 VID/PID：优先总线地址，同时带上设备身份。
         if let device = selectedDevice {
+            configuration.vendorID = device.vendorID
+            configuration.productID = device.productID
             configuration.busNumber = device.busNumber
             configuration.deviceAddress = device.deviceAddress
         }
