@@ -79,6 +79,11 @@ public final class TetherKitSession {
             fatalMessage: String(fixedCArray: raw.fatal))
     }
 
+    /// 当前系统网卡名（如 feth0）。
+    public var systemInterface: String {
+        status().systemInterface
+    }
+
     /// 取走已排队的事件，渲染成给用户看的一句话。
     ///
     /// 只保留「用户会关心」的那几类：链路变化、设备复位、致命错误。RNDIS 内部

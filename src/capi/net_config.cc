@@ -30,6 +30,7 @@
 #include <chrono>
 #include <cstring>
 #include <format>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -323,18 +324,83 @@ void TryPublishDns(SCDynamicStoreRef store, std::string_view service_id,
   return RunOrFail(kRoutePath, change_arguments, Text(Msg::kCapiWhatUpdateScopedRoute));
 }
 
+struct CurrentDefaultRoute {
+  std::string gateway;
+  std::string interface;
+};
+
+/// 查询系统当前的全局默认网关与接口（若存在）。
+[[nodiscard]] std::optional<CurrentDefaultRoute> QueryCurrentDefaultRoute() {
+  const auto result = RunTool(kRoutePath, {"-n", "get", "default"});
+  if (!result || !result->Succeeded()) {
+    return std::nullopt;
+  }
+  const std::string_view output = result->output;
+  CurrentDefaultRoute info;
+
+  if (const auto gw_pos = output.find("gateway: "); gw_pos != std::string_view::npos) {
+    const auto line_end = output.find('\n', gw_pos);
+    const auto gw_start = gw_pos + 9;
+    std::string gw{output.substr(gw_start, (line_end == std::string_view::npos ? output.size() : line_end) - gw_start)};
+    while (!gw.empty() && (gw.back() == ' ' || gw.back() == '\r')) {
+      gw.pop_back();
+    }
+    if (IsValidIpv4(gw)) {
+      info.gateway = gw;
+    }
+  }
+
+  if (const auto if_pos = output.find("interface: "); if_pos != std::string_view::npos) {
+    const auto line_end = output.find('\n', if_pos);
+    const auto if_start = if_pos + 11;
+    std::string iface{output.substr(if_start, (line_end == std::string_view::npos ? output.size() : line_end) - if_start)};
+    while (!iface.empty() && (iface.back() == ' ' || iface.back() == '\r')) {
+      iface.pop_back();
+    }
+    info.interface = iface;
+  }
+
+  if (info.gateway.empty()) {
+    return std::nullopt;
+  }
+  return info;
+}
+
+// 跟踪当前由 TetherKit 改动全局默认路由前的原有网关与本网卡装上的网关，
+// 用于在停机或撤销时完整恢复，避免破坏用户的 Wi-Fi / 有线连接。
+std::mutex g_global_route_mutex;
+std::string g_installed_global_router;
+std::string g_previous_global_router;
+
 /// 把**全局**默认路由改到指定网关。
 [[nodiscard]] Status PromoteToGlobalDefaultRoute(std::string_view router) {
+  // 记录改动前的默认网关（只要它不是当前要设的 router，且不属于 feth 网卡自身）
+  {
+    const std::lock_guard<std::mutex> guard(g_global_route_mutex);
+    if (const auto current = QueryCurrentDefaultRoute(); current.has_value()) {
+      if (current->gateway != router && !current->interface.starts_with("feth")) {
+        g_previous_global_router = current->gateway;
+      }
+    }
+  }
+
   const std::vector<std::string> arguments{"-n", "change", "-inet", "default", std::string{router}};
   if (const auto status = RunOrFail(kRoutePath, arguments, Text(Msg::kCapiWhatSwitchGlobalRoute));
       status) {
+    const std::lock_guard<std::mutex> guard(g_global_route_mutex);
+    g_installed_global_router = std::string{router};
     return tetherkit::Ok();
   }
   // 系统当前可能压根没有全局默认路由（没连任何网络），此时 change 会失败，
   // 该用 add。这正是 USB 网络共享最典型的场景，必须处理。
   const std::vector<std::string> add_arguments{"-n", "add", "-inet", "default",
                                                std::string{router}};
-  return RunOrFail(kRoutePath, add_arguments, Text(Msg::kCapiWhatAddGlobalRoute));
+  const auto status = RunOrFail(kRoutePath, add_arguments, Text(Msg::kCapiWhatAddGlobalRoute));
+  if (status) {
+    const std::lock_guard<std::mutex> guard(g_global_route_mutex);
+    g_installed_global_router = std::string{router};
+  }
+  return status;
 }
 
 /// DHCP 模式下，从租约里取出网关地址。
@@ -429,7 +495,44 @@ void TryPublishDns(SCDynamicStoreRef store, std::string_view service_id,
   return tetherkit::Ok();
 }
 
+void ClearGlobalDefaultRoute(std::string_view interface_name) {
+  std::string installed;
+  std::string previous;
+  {
+    const std::lock_guard<std::mutex> guard(g_global_route_mutex);
+    installed = std::move(g_installed_global_router);
+    previous = std::move(g_previous_global_router);
+    g_installed_global_router.clear();
+    g_previous_global_router.clear();
+  }
+
+  // 1. 若记录了改动前的网关，优先恢复它（例如恢复 Wi-Fi / 有线网关）
+  if (!previous.empty()) {
+    const auto restore_result =
+        RunTool(kRoutePath, {"-n", "change", "-inet", "default", previous});
+    if (restore_result && restore_result->Succeeded()) {
+      return;
+    }
+  }
+
+  // 2. 否则，清除 TetherKit 写入的全局默认路由
+  if (!installed.empty()) {
+    static_cast<void>(
+        RunTool(kRoutePath, {"-n", "delete", "-inet", "default", installed}));
+    return;
+  }
+
+  // 3. 兜底保护（如 helper 重启）：若当前默认路由绑定在当前 feth 网卡上，删除它避免留下死路由
+  if (const auto current = QueryCurrentDefaultRoute(); current.has_value()) {
+    if (current->interface == interface_name) {
+      static_cast<void>(
+          RunTool(kRoutePath, {"-n", "delete", "-inet", "default", current->gateway}));
+    }
+  }
+}
+
 [[nodiscard]] Status ApplyNone(std::string_view interface_name) {
+  ClearGlobalDefaultRoute(interface_name);
   return RunOrFail(kIpconfigPath, {"set", std::string{interface_name}, "NONE"},
                    Text(Msg::kCapiWhatClearConfig));
 }
