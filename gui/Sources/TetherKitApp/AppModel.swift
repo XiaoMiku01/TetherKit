@@ -422,8 +422,8 @@ final class AppModel {
     }
 
     var selectedDevice: DeviceDescriptor? {
-        if let selectedDeviceID {
-            return devices.first { $0.id == selectedDeviceID }
+        if let selectedDeviceID, let matched = devices.first(where: { $0.id == selectedDeviceID }) {
+            return matched
         }
         return devices.first
     }
@@ -531,6 +531,9 @@ final class AppModel {
     func refreshDevices() async {
         lastDeviceRefresh = .now
         devices = (try? await client.listDevices()) ?? []
+        if let selected = selectedDeviceID, !devices.contains(where: { $0.id == selected }) {
+            selectedDeviceID = nil
+        }
     }
 
     /// 距上次枚举是否已经够久。顺带记下这一次的时刻。
