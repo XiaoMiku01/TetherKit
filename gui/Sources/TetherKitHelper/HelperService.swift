@@ -150,6 +150,9 @@ final class HelperService: NSObject, TetherKitHelperProtocol {
                 defer { self.session = nil }
                 return self.session
             }
+            if let iface = session?.systemInterface, !iface.isEmpty {
+                try? NetworkConfigurator.clear(interface: iface)
+            }
             session?.stop()
             self.appendNotices([L(.helperSessionStopped)])
             reply(nil, false)
@@ -192,6 +195,9 @@ final class HelperService: NSObject, TetherKitHelperProtocol {
         let session = stateLock.withLock { () -> TetherKitSession? in
             defer { self.session = nil }
             return self.session
+        }
+        if let iface = session?.systemInterface, !iface.isEmpty {
+            try? NetworkConfigurator.clear(interface: iface)
         }
         session?.stop()
     }
