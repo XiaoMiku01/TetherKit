@@ -410,6 +410,13 @@ void UsbDataChannel::OnSendComplete(Slot& slot) noexcept {
     case LIBUSB_TRANSFER_NO_DEVICE:
       break;
 
+    case LIBUSB_TRANSFER_TIMED_OUT:
+      // 超时多因设备侧在空闲时未读取非单播广播包（如 mDNS/SSDP），
+      // 记录丢包并打 DEBUG，避免在空闲期每 5 秒在日志面板疯狂刷 WARN 警告。
+      async_send_errors_.fetch_add(1, std::memory_order_relaxed);
+      TETHERKIT_DEBUG_TR(Msg::kUsbBulkOutFailed, static_cast<int>(slot.transfer->status));
+      break;
+
     default:
       async_send_errors_.fetch_add(1, std::memory_order_relaxed);
       TETHERKIT_WARN_TR(Msg::kUsbBulkOutFailed, static_cast<int>(slot.transfer->status));
