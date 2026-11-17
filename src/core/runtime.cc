@@ -231,6 +231,7 @@ Status Runtime::RunStartSequence() {
 void Runtime::RunControlLoop() {
   BridgeStats previous = bridge_->Snapshot();
   Nanos last_stats_nanos = MonotonicNanos();
+  std::uint32_t consecutive_idle_reports = 0;
 
   const Nanos stats_interval_nanos =
       static_cast<Nanos>(config_.stats_interval_millis) * kNanosPerMilli;
@@ -255,7 +256,22 @@ void Runtime::RunControlLoop() {
       const BridgeStats current = bridge_->Snapshot();
       const double seconds =
           static_cast<double>(now - last_stats_nanos) / static_cast<double>(kNanosPerSecond);
-      TETHERKIT_INFO("{}", FormatStatsLine(previous, current, seconds));
+      const DirectionSnapshot rx_delta = current.rx - previous.rx;
+      const DirectionSnapshot tx_delta = current.tx - previous.tx;
+      const bool is_idle = (rx_delta.frames == 0 && tx_delta.frames == 0 &&
+                            rx_delta.TotalDropped() == 0 && tx_delta.TotalDropped() == 0 &&
+                            current.link_kernel_drops == previous.link_kernel_drops &&
+                            current.tx_backpressure_events == previous.tx_backpressure_events);
+      if (is_idle) {
+        // 空闲期抑制高频刷屏：只在刚进入空闲时报告一次，之后每 12 个周期（约 60 秒）打一次心跳。
+        ++consecutive_idle_reports;
+        if (consecutive_idle_reports == 1 || consecutive_idle_reports % 12 == 0) {
+          TETHERKIT_INFO("{}", FormatStatsLine(previous, current, seconds));
+        }
+      } else {
+        consecutive_idle_reports = 0;
+        TETHERKIT_INFO("{}", FormatStatsLine(previous, current, seconds));
+      }
       previous = current;
       last_stats_nanos = now;
     }

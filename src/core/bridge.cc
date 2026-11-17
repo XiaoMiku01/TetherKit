@@ -145,7 +145,7 @@ void Bridge::RunReceiveInjector() noexcept {
       // 置确认位是给 SetPaused(true) 看的：从这里到下一轮看见 paused_ 变回
       // false 之前，本线程不会碰 rx_ring_，所以这个确认是可信的。
       rx_paused_ack_.store(true, std::memory_order_release);
-      std::this_thread::yield();
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
       continue;
     }
 
@@ -168,8 +168,14 @@ void Bridge::RunReceiveInjector() noexcept {
         if (++idle_spins < config_.rx_spin_before_yield) {
           continue;
         }
-        idle_spins = 0;
-        std::this_thread::yield();
+        if (idle_spins < config_.rx_spin_before_yield + config_.rx_yield_before_sleep) {
+          std::this_thread::yield();
+          continue;
+        }
+        // 队列持续为空（空闲待机）：睡眠让出 CPU，避免在 Darwin/POSIX 上因
+        // sched_yield 立即返回而把单个 CPU 核心持续跑满 100%。
+        std::this_thread::sleep_for(
+            std::chrono::microseconds(config_.rx_idle_sleep_micros));
         continue;
       }
       idle_spins = 0;
