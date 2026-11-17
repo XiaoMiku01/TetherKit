@@ -77,9 +77,9 @@ struct DataChannelConfig {
 
   /// 并发在飞的 bulk OUT 传输数。
   ///
-  /// TX 侧不需要像 RX 那么多：帧是我们主动攒批发出去的，4 个足以让
-  /// 「组装下一批」与「上一批在飞」重叠起来。
-  std::uint32_t tx_transfer_count = 4;
+  /// 与 RX 侧（rx_transfer_count = 16）保持对齐，提供约 256 KiB 在飞队列深度，
+  /// 避免在持续上行突发（如下载时的 TCP ACK 泛洪或文件上传）时频发背压等待。
+  std::uint32_t tx_transfer_count = 16;
 
   /// 每个 bulk OUT 缓冲的字节数。运行时会被协商出的设备 MaxTransferSize 覆盖。
   std::uint32_t tx_transfer_bytes = 16 * 1024;
