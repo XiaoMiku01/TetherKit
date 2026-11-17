@@ -5,7 +5,7 @@ import TetherKitCore
 import TetherKitIPC
 
 /// 一次采样得到的瞬时速率。
-struct ThroughputSample: Identifiable {
+struct ThroughputSample: Identifiable, Equatable {
     let id = UUID()
     let timestamp: Date
     let receiveBitsPerSecond: Double
@@ -398,9 +398,13 @@ final class AppModel {
             transmitPacketsPerSecond: Double(fresh.txFrames &- previous.txFrames) / seconds)
 
         throughput = sample
-        throughputHistory.append(sample)
-        if throughputHistory.count > Self.historyCapacity {
-            throughputHistory.removeFirst(throughputHistory.count - Self.historyCapacity)
+        if isWindowVisible {
+            throughputHistory.append(sample)
+            if throughputHistory.count > Self.historyCapacity {
+                throughputHistory.removeFirst(throughputHistory.count - Self.historyCapacity)
+            }
+        } else if !throughputHistory.isEmpty {
+            throughputHistory.removeAll(keepingCapacity: true)
         }
     }
 

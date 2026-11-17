@@ -97,6 +97,7 @@ struct ThroughputCard: View {
             // 横轴不画刻度：这是一条「最近 60 秒」的滚动曲线，具体时刻没有意义，
             // 画上去只会挤占本来就不高的绘图区。
             .chartXAxis(.hidden)
+            .animation(nil, value: model.throughputHistory)
             .frame(height: 120)
         } else {
             RoundedRectangle(cornerRadius: Design.Radius.control)
