@@ -84,6 +84,13 @@ struct BridgeConfig {
   /// 「生产者正在写下一帧」这种极短的空窗。
   std::uint32_t rx_spin_before_yield = 64;
 
+  /// RX 队列空时让出 CPU（yield）的轮数，之后转入微秒级睡眠，避免在 Darwin/POSIX
+  /// 上因 sched_yield 立即返回而导致空闲时单核 100% 忙轮询。
+  std::uint32_t rx_yield_before_sleep = 16;
+
+  /// RX 队列持续为空时的睡眠微秒数。默认 250 微秒，兼顾零 CPU 消耗与亚毫秒级唤醒延迟。
+  std::uint32_t rx_idle_sleep_micros = 250;
+
   /// TX 方向单批最多提交多少帧给 USB。
   std::uint32_t tx_submit_batch = 256;
 
