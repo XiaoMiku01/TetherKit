@@ -121,7 +121,20 @@ final class AppModel {
     var requestedMTU: UInt32 = 1500
     var adoptDeviceMAC: Bool = true
     /// 网络配置表单。
-    var networkConfiguration: NetworkConfiguration = .dhcp
+    private static let defaultRouteDefaultsKey = "TetherKitSetDefaultRoute"
+    var networkConfiguration: NetworkConfiguration = {
+        var config = NetworkConfiguration.dhcp
+        if UserDefaults.standard.object(forKey: "TetherKitSetDefaultRoute") != nil {
+            config.setDefaultRoute = UserDefaults.standard.bool(forKey: "TetherKitSetDefaultRoute")
+        } else {
+            config.setDefaultRoute = true
+        }
+        return config
+    }() {
+        didSet {
+            UserDefaults.standard.set(networkConfiguration.setDefaultRoute, forKey: Self.defaultRouteDefaultsKey)
+        }
+    }
     /// 会话建立后是否自动应用当前上网方式配置。
     var autoApplyNetwork: Bool = {
         if UserDefaults.standard.object(forKey: "TetherKitAutoApplyNetwork") != nil {
@@ -383,6 +396,11 @@ final class AppModel {
             hasAutoAppliedNetwork = true
             Task {
                 await applyNetworkConfiguration()
+                if !networkState.hasAddress {
+                    // 若 DHCP 服务端响应较慢，等待 2 秒后允许重新尝试
+                    try? await Task.sleep(for: .seconds(2))
+                    hasAutoAppliedNetwork = false
+                }
             }
         }
     }
