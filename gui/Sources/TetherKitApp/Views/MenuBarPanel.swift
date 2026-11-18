@@ -2,19 +2,19 @@ import AppKit
 import SwiftUI
 import TetherKitIPC
 
-/// 菜单栏里的常驻标签：状态图标 + 实时速率。
+/// 菜单栏里的常驻标签：状态图标或实时速率。
 ///
-/// 只在会话运行时显示速率文本 —— 空闲时一串 "0K" 只是噪音，图标本身已经把
-/// 状态说清楚了。数字用等宽，避免速率跳动时把右边的其它菜单栏项挤来挤去。
+/// 会话运行时只显示紧凑速率文本，节省宝贵的菜单栏空间；未运行或正在启停时显示状态图标。
 struct MenuBarLabel: View {
     var model: AppModel
 
     var body: some View {
         HStack(spacing: 2) {
-            Image(systemName: Design.statusSymbol(for: model.status))
             if model.status.runState == .running {
                 Text(speedText)
                     .font(.system(size: 11, weight: .medium).monospacedDigit())
+            } else {
+                Image(systemName: Design.statusSymbol(for: model.status))
             }
         }
     }
