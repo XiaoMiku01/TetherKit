@@ -5,7 +5,7 @@ import TetherKitCore
 import TetherKitIPC
 
 /// 一次采样得到的瞬时速率。
-struct ThroughputSample: Identifiable {
+struct ThroughputSample: Identifiable, Equatable {
     let id = UUID()
     let timestamp: Date
     let receiveBitsPerSecond: Double
