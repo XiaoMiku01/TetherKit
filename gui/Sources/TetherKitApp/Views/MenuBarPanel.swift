@@ -146,13 +146,36 @@ struct MenuBarPanel: View {
     /// 语言开关。选项写母语名字，不跟随界面语言翻译 —— 见 LanguageMenu 的说明。
     private var languageMenu: some View {
         Menu {
-            Picker(L(.languageLabel), selection: Bindable(model).languagePreference) {
-                Text(L(.languageSystem)).tag(LanguagePreference.system)
-                Text(verbatim: "中文").tag(LanguagePreference.chinese)
-                Text(verbatim: "English").tag(LanguagePreference.english)
+            Button {
+                model.languagePreference = .system
+            } label: {
+                HStack {
+                    Text(L(.languageSystem))
+                    if model.languagePreference == .system {
+                        Image(systemName: "checkmark")
+                    }
+                }
             }
-            .pickerStyle(.inline)
-            .labelsHidden()
+            Button {
+                model.languagePreference = .chinese
+            } label: {
+                HStack {
+                    Text(verbatim: "中文")
+                    if model.languagePreference == .chinese {
+                        Image(systemName: "checkmark")
+                    }
+                }
+            }
+            Button {
+                model.languagePreference = .english
+            } label: {
+                HStack {
+                    Text(verbatim: "English")
+                    if model.languagePreference == .english {
+                        Image(systemName: "checkmark")
+                    }
+                }
+            }
         } label: {
             Image(systemName: "globe")
         }
