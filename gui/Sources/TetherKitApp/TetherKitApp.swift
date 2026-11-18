@@ -16,8 +16,20 @@ import TetherKitIPC
 ///
 ///   轮询在窗口关闭后**不**停（菜单栏靠它喂数据），只是在「窗口关着且会话
 ///   没跑」时放慢到 2 秒一次，见 AppModel.pollDelay。
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if let window = sender.windows.first(where: { $0.identifier?.rawValue == "main" || $0.title == "TetherKit" }) {
+            window.makeKeyAndOrderFront(nil)
+            sender.activate(ignoringOtherApps: true)
+            return false
+        }
+        return true
+    }
+}
+
 @main
 struct TetherKitApplication: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var model = AppModel()
 
     init() {
@@ -114,24 +126,7 @@ private struct LanguageMenu: View {
     }
 }
 
-/// 主窗口的根视图：内容 + 生命周期钩子 + 「擅自复活」拦截。
-///
-/// ★ 为什么需要拦截 ★
-///
-///   实测（打包版，macOS 26）：App 处于仅菜单栏模式时点菜单栏图标，SwiftUI 会在
-///   面板打开的同时**擅自重建整个 Window 场景** —— 主窗口毫无来由地冒回来，把
-///   面板压在底下。这不走 `applicationShouldHandleReopen`（插桩确认从未被调用，
-///   SwiftUI 生命周期不转发它），所以没有干净的委托口子可堵。
-///
-///   对策是在结果端把关：窗口每次出现时问 AppModel「这次展示是我们自己要求的
-///   吗」。只有两种合法来源 —— App 启动、用户点了「打开主窗口」—— 两处都会先在
-///   模型上登记。没登记过的出现就是擅自复活，当场 dismiss，激活策略保持
-///   accessory 不动。
-///
-///   代价：在仅菜单栏模式下双击访达里的 App 图标不会弹出主窗口（那次重建同样
-///   会被拦掉）。这是权衡后的结果 —— 菜单栏是唯一入口的模式下，「点图标面板被
-///   窗口顶掉」每天都会发生，而访达双击是罕见路径，面板里的「打开主窗口」随时
-///   可用。
+/// 主窗口的根视图：内容 + 生命周期钩子。
 private struct MainWindowRoot: View {
     var model: AppModel
     @Environment(\.dismissWindow) private var dismissWindow
@@ -149,32 +144,27 @@ private struct MainWindowRoot: View {
                 model.start()
             }
             .onAppear {
-                guard model.isWindowPresentationExpected() else {
-                    dismissWindow(id: "main")
-                    return
-                }
                 model.windowDidAppear()
-                // 窗口在，程序坞图标就该在（从菜单栏重新打开时恢复它）。
-                NSApp.setActivationPolicy(.regular)
             }
             .onDisappear {
                 model.windowDidDisappear()
-                // 关掉窗口就退到「仅菜单栏」：常驻小工具挂着一个没有窗口的
-                // 程序坞图标只会让人想去点它。轮询与会话都不受影响。
-                NSApp.setActivationPolicy(.accessory)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { notification in
+                guard let window = notification.object as? NSWindow,
+                      window.identifier?.rawValue == "main" || window.title == "TetherKit" else {
+                    return
+                }
+                model.windowDidDisappear()
             }
     }
 }
 
-/// 从「仅菜单栏」的后台模式回到前台并显示主窗口。
-///
-/// 顺序是刻意的：先在模型上登记（否则 MainWindowRoot 的拦截会把窗口当成擅自
-/// 复活关掉）；激活策略必须在 openWindow **之前**改回 .regular，否则新窗口可能
-/// 落到别的应用后面；最后再 activate 把焦点抢过来。
+/// 从菜单栏唤起并显示主窗口。
 @MainActor
 func presentMainWindow(_ model: AppModel, _ openWindow: OpenWindowAction) {
-    model.expectWindowPresentation()
-    NSApp.setActivationPolicy(.regular)
     openWindow(id: "main")
+    if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "main" || $0.title == "TetherKit" }) {
+        window.makeKeyAndOrderFront(nil)
+    }
     NSApp.activate(ignoringOtherApps: true)
 }

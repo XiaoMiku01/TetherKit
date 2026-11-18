@@ -51,9 +51,9 @@
 
     <key>NSHighResolutionCapable</key>
     <true/>
-    <!-- 这是一个有窗口的普通应用，不是后台代理。 -->
+    <!-- 菜单栏常驻实用工具（Accessory/Agent），在程序坞中不占位。 -->
     <key>LSUIElement</key>
-    <false/>
+    <true/>
     <key>NSSupportsAutomaticTermination</key>
     <false/>
     <!-- 会话跑着的时候被系统「自动终止」等于把用户的网络断掉。 -->
