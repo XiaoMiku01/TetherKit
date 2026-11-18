@@ -398,13 +398,9 @@ final class AppModel {
             transmitPacketsPerSecond: Double(fresh.txFrames &- previous.txFrames) / seconds)
 
         throughput = sample
-        if isWindowVisible {
-            throughputHistory.append(sample)
-            if throughputHistory.count > Self.historyCapacity {
-                throughputHistory.removeFirst(throughputHistory.count - Self.historyCapacity)
-            }
-        } else if !throughputHistory.isEmpty {
-            throughputHistory.removeAll(keepingCapacity: true)
+        throughputHistory.append(sample)
+        if throughputHistory.count > Self.historyCapacity {
+            throughputHistory.removeFirst(throughputHistory.count - Self.historyCapacity)
         }
     }
 
